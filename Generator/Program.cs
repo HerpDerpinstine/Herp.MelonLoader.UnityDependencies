@@ -44,7 +44,7 @@ internal static class Program
             github.Credentials = new(token);
         }
         
-        http.DefaultRequestHeaders.Add("User-Agent", "Unity web player");
+        http.DefaultRequestHeaders.Add("User-Agent", Config.UserAgent);
 
         Console.WriteLine("Fetching available releases");
         var versions = await GetAvailableVersionsAsync();
@@ -177,7 +177,7 @@ internal static class Program
         var skip = 0;
         while (true)
         {
-            var resp = await GetUnityReleasesAsync(300, skip);
+            var resp = await GetUnityReleasesAsync(Config.PageSize, skip);
 
             foreach (var edge in resp.Data.GetUnityReleases.Edges)
             {
@@ -224,7 +224,7 @@ internal static class Program
             ["query"] = "query GetRelease($limit: Int, $skip: Int) { getUnityReleases(limit: $limit, skip: $skip, entitlements: [XLTS]) { pageInfo { hasNextPage }, edges { node { version, shortRevision } } } }"
         };
 
-        var resp = await http.PostAsync("https://services.unity.com/graphql", new StringContent(body.ToJsonString(), MediaTypeHeaderValue.Parse(MediaTypeNames.Application.Json)));
+        var resp = await http.PostAsync(Config.GraphQLApiUrl, new StringContent(body.ToJsonString(), MediaTypeHeaderValue.Parse(MediaTypeNames.Application.Json)));
         resp.EnsureSuccessStatusCode();
 
         var respString = await resp.Content.ReadAsStringAsync();
