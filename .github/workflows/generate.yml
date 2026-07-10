@@ -1,10 +1,10 @@
 name: Fetch Dependencies
 
 on:
-  schedule:
-    - cron: '20 */12 * * *'
-  push:
-    branches: [ main ]
+  #schedule:
+  #  - cron: '20 */12 * * *'
+  #push:
+  #  branches: [ main ]
   workflow_dispatch:
 
 concurrency:
@@ -19,12 +19,21 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v6
+
       - name: Setup dotnet
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
+
+      - name: Setup python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
       
       - name: Build and Run Generator
         run: dotnet run --project Generator/Generator.csproj -c Release -- LavaGang MelonLoader.UnityDependencies main
         env: 
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GitHubApiKey: ${{ secrets.GITHUB_TOKEN }}
+          GitHubRepoOwner: ${{ github.repository_owner }}
+          GitHubRepoName: ${{ github.repository }}
+          GitHubRepoBranch: main

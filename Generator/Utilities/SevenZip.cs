@@ -2,11 +2,14 @@ using System.Diagnostics;
 
 namespace Generator;
 
-public static class SevenZip
+internal static class SevenZip
 {
     private static readonly string sevenZipPath = Path.Combine(Path.GetDirectoryName(Environment.ProcessPath)!, "Dependencies", "7zz");
-    
-    public static async Task ExtractAsync(string archive, string outputDir, bool keepStructure, params string[] fileFilter)
+
+    internal static async Task ExtractAsync(string archive, 
+        string outputDir,
+        bool keepStructure,
+        params string[] fileFilter)
     {
         var args = new List<string>()
         {
@@ -17,9 +20,15 @@ public static class SevenZip
         
         var proc = Process.Start(new ProcessStartInfo(sevenZipPath, args)
         {
-            RedirectStandardOutput = true
+            //UseShellExecute = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
         })!;
+        proc.OutputDataReceived += (_, eventArgs) => Console.WriteLine(eventArgs.Data); 
+        proc.ErrorDataReceived += (_, eventArgs) => Console.WriteLine(eventArgs.Data); 
         await proc.WaitForExitAsync();
+        
         if (proc.ExitCode != 0)
             throw new($"7z exit code: {proc.ExitCode}");
     }
