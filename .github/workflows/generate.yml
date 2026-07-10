@@ -31,7 +31,7 @@ jobs:
           python-version: '3.13'
       
       - name: Build and Run Generator
-        run: dotnet run --project Generator/Generator.csproj -c Release -- LavaGang MelonLoader.UnityDependencies main
+        run: dotnet run --project Generator/Generator.csproj -c Release
         env: 
           GitHubApiKey: ${{ secrets.GITHUB_TOKEN }}
           GitHubRepoOwner: ${{ github.repository_owner }}
