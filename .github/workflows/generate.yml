@@ -34,6 +34,5 @@ jobs:
         run: dotnet run --project Generator/Generator.csproj -c Release
         env: 
           GitHubApiKey: ${{ secrets.GITHUB_TOKEN }}
-          GitHubRepoOwner: ${{ github.repository_owner }}
-          GitHubRepoName: ${{ github.repository }}
+          GitHubRepo: ${{ github.repository }}
           GitHubRepoBranch: main

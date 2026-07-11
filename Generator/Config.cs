@@ -18,8 +18,7 @@ internal static class Config
     // GitHub
     internal static int GitHubTimeout = 600;
     internal static string GitHubApiKey = string.Empty;
-    internal static string GitHubRepoOwner = string.Empty;
-    internal static string GitHubRepoName = string.Empty;
+    internal static string GitHubRepo = string.Empty;
     internal static string GitHubRepoBranch = string.Empty;
     internal static bool GitHubUploadPackages;
     internal static bool GitHubUpdateExistingReleases;
@@ -45,8 +44,7 @@ internal static class Config
         GitHubTimeout = GetEnvInt(nameof(GitHubTimeout), GitHubTimeout);
         
         GitHubApiKey = GetEnvString(nameof(GitHubApiKey), GitHubApiKey);
-        GitHubRepoOwner = GetEnvString(nameof(GitHubRepoOwner), GitHubRepoOwner);
-        GitHubRepoName = GetEnvString(nameof(GitHubRepoName), GitHubRepoName);
+        GitHubRepo = GetEnvString(nameof(GitHubRepo), GitHubRepo);
         GitHubRepoBranch = GetEnvString(nameof(GitHubRepoBranch), GitHubRepoBranch);
         
         GitHubUploadPackages = GetEnvBool(nameof(GitHubUploadPackages), GitHubUploadPackages);
@@ -72,8 +70,7 @@ internal static class Config
         
         // GitHub
         ValidateString(nameof(GitHubApiKey), GitHubApiKey);
-        ValidateString(nameof(GitHubRepoOwner), GitHubRepoOwner);
-        ValidateString(nameof(GitHubRepoName), GitHubRepoName);
+        ValidateString(nameof(GitHubRepo), GitHubRepo);
         ValidateString(nameof(GitHubRepoBranch), GitHubRepoBranch);
     }
 

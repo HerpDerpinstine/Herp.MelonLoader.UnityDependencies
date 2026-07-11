@@ -6,14 +6,26 @@ namespace Generator;
 
 internal static class GitHubAPI
 {
+    private static string? _repoOwner;
+    private static string? _repoName;
+    
     private static GitHubClient? _client;
     private static GitHubClient GetClient()
     {
         if (_client == null)
         {
-            _client = new(new ProductHeaderValue(Config.GitHubRepoName));
+            _client = new(new ProductHeaderValue(Config.GitHubRepo));
             _client.Credentials = new(Config.GitHubApiKey);
         }
+
+        if (string.IsNullOrEmpty(_repoOwner)
+            || string.IsNullOrEmpty(_repoName))
+        {
+            string[] repoSplit = Config.GitHubRepo.Split('/');
+            _repoOwner = repoSplit[0];
+            _repoName = repoSplit[1];
+        }
+
         return _client;
     }
     
@@ -23,7 +35,7 @@ internal static class GitHubAPI
         GitHubClient client = GetClient();
         
         // Get Releases
-        return await client.Repository.Release.GetAll(Config.GitHubRepoOwner, Config.GitHubRepoName);
+        return await client.Repository.Release.GetAll(_repoOwner, _repoName);
     }
 
     internal static async Task<Release> SetReleaseDraft(Release release, bool value)
@@ -50,7 +62,7 @@ internal static class GitHubAPI
         GitHubClient client = GetClient();
         
         // Create a Release
-        return await client.Repository.Release.Create(Config.GitHubRepoOwner, Config.GitHubRepoName, new(tag)
+        return await client.Repository.Release.Create(_repoOwner, _repoName, new(tag)
         {
             Name = name,
             Body = body,
@@ -64,7 +76,7 @@ internal static class GitHubAPI
         GitHubClient client = GetClient();
         
         // Update Release
-        return await client.Repository.Release.Edit(Config.GitHubRepoOwner, Config.GitHubRepoName, id, update);
+        return await client.Repository.Release.Edit(_repoOwner, _repoName, id, update);
     }
 
     internal static async Task<Reference> CreateTag(string tag)
@@ -73,8 +85,8 @@ internal static class GitHubAPI
         GitHubClient client = GetClient();
         
         // Create Tag
-        var commitSha = (await client.Repository.Branch.Get(Config.GitHubRepoOwner, Config.GitHubRepoName, Config.GitHubRepoBranch)).Commit.Sha;
-        return await client.Git.Reference.Create(Config.GitHubRepoOwner, Config.GitHubRepoName, new($"refs/tags/{tag}", commitSha));
+        var commitSha = (await client.Repository.Branch.Get(_repoOwner, _repoName, Config.GitHubRepoBranch)).Commit.Sha;
+        return await client.Git.Reference.Create(_repoOwner, _repoName, new($"refs/tags/{tag}", commitSha));
     }
 
     internal static async Task UploadAsset(Release release,
