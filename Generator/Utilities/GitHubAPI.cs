@@ -12,18 +12,18 @@ internal static class GitHubAPI
     private static GitHubClient? _client;
     private static GitHubClient GetClient()
     {
-        if (_client == null)
-        {
-            _client = new(new ProductHeaderValue(Config.GitHubRepo));
-            _client.Credentials = new(Config.GitHubApiKey);
-        }
-
         if (string.IsNullOrEmpty(_repoOwner)
             || string.IsNullOrEmpty(_repoName))
         {
             string[] repoSplit = Config.GitHubRepo.Split('/');
             _repoOwner = repoSplit[0];
             _repoName = repoSplit[1];
+        }
+        
+        if (_client == null)
+        {
+            _client = new(new ProductHeaderValue(_repoName));
+            _client.Credentials = new(Config.GitHubApiKey);
         }
 
         return _client;
