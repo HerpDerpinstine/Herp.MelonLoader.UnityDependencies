@@ -211,20 +211,14 @@ public static class PackageHandler
         
         try
         {
-            Console.Write("0%");
-            await Console.Out.FlushAsync();
-
-            await HttpRequest.DownloadFileAsync(downloadUrl, downloadPath, (progress) =>
-            {
-                Console.Write($" {progress}%");
-                Console.Out.Flush();
-            });
+            Console.WriteLine("0%");
+            await HttpRequest.DownloadFileAsync(downloadUrl, downloadPath, (progress) => Console.WriteLine($"{progress}%"));
             Console.WriteLine();
         }
         catch (Exception e)
         {
-            Console.WriteLine();
             Console.WriteLine(e.ToString());
+            Console.WriteLine();
             return string.Empty;
         }
         
@@ -279,6 +273,7 @@ public static class PackageHandler
                 
                 break;
         }
+        Console.WriteLine();
     }
 
     private static void Bundle(
@@ -307,6 +302,7 @@ public static class PackageHandler
             BundleDirectory(managedZip, supportDirPath, searchPattern);
         }
         managedZipStr.Close();
+        Console.WriteLine();
     }
 
     private static void BundleDirectory(ZipArchive archive, string searchDir, string searchPattern)
