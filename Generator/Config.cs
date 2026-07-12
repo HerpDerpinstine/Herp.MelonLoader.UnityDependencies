@@ -7,6 +7,7 @@ internal static class Config
     // Web Requests
     internal static string WebRequestUserAgent = "Unity web player";
     internal static int WebRequestTimeout = 600;
+    internal static bool WebRequestPrintDownloadProgress;
 
     // Unity
     internal static string UnityGraphQLApiUrl = "https://services.unity.com/api/live-platform/v1/graphql";
@@ -32,6 +33,7 @@ internal static class Config
         // Web Requests
         WebRequestUserAgent = GetEnvString(nameof(WebRequestUserAgent), WebRequestUserAgent);
         WebRequestTimeout = GetEnvInt(nameof(WebRequestTimeout), WebRequestTimeout);
+        WebRequestPrintDownloadProgress = GetEnvBool(nameof(WebRequestPrintDownloadProgress), WebRequestPrintDownloadProgress);
         
         // Unity
         UnityGraphQLApiUrl = GetEnvString(nameof(UnityGraphQLApiUrl), UnityGraphQLApiUrl);

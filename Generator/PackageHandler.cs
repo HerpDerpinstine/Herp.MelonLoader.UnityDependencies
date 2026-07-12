@@ -211,7 +211,8 @@ public static class PackageHandler
         
         try
         {
-            Console.WriteLine("0%");
+            if (Config.WebRequestPrintDownloadProgress)
+                Console.WriteLine("0%");
             await HttpRequest.DownloadFileAsync(downloadUrl, downloadPath, (progress) => Console.WriteLine($"{progress}%"));
             Console.WriteLine();
         }

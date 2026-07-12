@@ -45,19 +45,19 @@ internal static class HttpRequest
         while (true)
         {
             int read = await source.ReadAsync(buffer);
-
             if (read == 0)
                 break;
-
             await destination.WriteAsync(buffer.AsMemory(0, read));
-
-            totalRead += read;
             
-            double progress = Math.Truncate((double)(totalRead * 100.0 / length));
-            if (progress > lastProgress)
+            if (Config.WebRequestPrintDownloadProgress)
             {
-                lastProgress = progress;
-                onProgress?.Invoke(progress);
+                totalRead += read;
+                double progress = Math.Truncate((double)(totalRead * 100.0 / length));
+                if (progress > lastProgress)
+                {
+                    lastProgress = progress;
+                    onProgress?.Invoke(progress);
+                }
             }
         }
 
