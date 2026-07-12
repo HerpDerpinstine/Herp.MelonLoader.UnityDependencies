@@ -212,7 +212,13 @@ public static class PackageHandler
         try
         {
             Console.Write("0%");
-            await HttpRequest.DownloadFileAsync(downloadUrl, downloadPath, (progress) => Console.Write($" {progress}%"));
+            await Console.Out.FlushAsync();
+
+            await HttpRequest.DownloadFileAsync(downloadUrl, downloadPath, (progress) =>
+            {
+                Console.Write($" {progress}%");
+                Console.Out.Flush();
+            });
             Console.WriteLine();
         }
         catch (Exception e)
