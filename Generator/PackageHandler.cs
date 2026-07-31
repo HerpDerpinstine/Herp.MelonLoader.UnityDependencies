@@ -357,6 +357,7 @@ public static class PackageHandler
                         "/MonoBleedingEdge/lib/mono/unityaot-android",
                         "/MonoBleedingEdge/lib/mono/unityaot",
                         "/MonoBleedingEdge/lib/mono/unity_aot",
+                        "/MonoBleedingEdge/lib/mono/unity",
                     ];
                 }
                 else
@@ -375,6 +376,7 @@ public static class PackageHandler
                         "/MonoBleedingEdge/lib/mono/unityaot-linux",
                         "/MonoBleedingEdge/lib/mono/unityaot",
                         "/MonoBleedingEdge/lib/mono/unity_aot",
+                        "/MonoBleedingEdge/lib/mono/unity",
                     ];
                 }
                 else
@@ -396,6 +398,7 @@ public static class PackageHandler
                         "/MonoBleedingEdge/lib/mono/unityaot-win32",
                         "/MonoBleedingEdge/lib/mono/unityaot",
                         "/MonoBleedingEdge/lib/mono/unity_aot",
+                        "/MonoBleedingEdge/lib/mono/unity",
                     ];
                 }
                 else
@@ -418,6 +421,7 @@ public static class PackageHandler
                         "/MonoBleedingEdge/lib/mono/unityaot-macos",
                         "/MonoBleedingEdge/lib/mono/unityaot",
                         "/MonoBleedingEdge/lib/mono/unity_aot",
+                        "/MonoBleedingEdge/lib/mono/unity",
                     ];
                 }
                 else
