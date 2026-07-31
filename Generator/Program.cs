@@ -49,10 +49,16 @@ internal static class Program
             }
             else
             {
-                // Exclude versions that already exist
-                if (!Config.GitHubUpdateExistingReleases
-                    && (release != null))
-                    continue;
+                if (release != null)
+                {
+                    // Exclude versions that already exist
+                    if (!Config.GitHubUpdateExistingReleases)
+                        continue;
+                    
+                    // To-Do:
+                    // Delete Existing Release & Tag
+                    // Set release to null
+                }
             }
 
             // Create Release
@@ -63,12 +69,19 @@ internal static class Program
                 release = GitHubAPI.CreateRelease(tag, tag, _releaseBody, true).Result;
             }
             
-            // Process Version
-            await TryProcess(release!, unityVersion, UnityPlatformID.Windows, Architecture.X64);
-            //await TryProcess(release!, unityVersion, UnityPlatformID.Windows, Architecture.Arm64);
-            await TryProcess(release!, unityVersion, UnityPlatformID.Linux, Architecture.X64);
-            await TryProcess(release!, unityVersion, UnityPlatformID.Mac, Architecture.X64);
-            await TryProcess(release!, unityVersion, UnityPlatformID.Mac, Architecture.Arm64);
+            // Handle Windows
+            if (!await TryProcess(release!, unityVersion, UnityPlatformID.Windows, Architecture.X64))
+                //|| !await TryProcess(release!, unityVersion, UnityPlatformID.Windows, Architecture.Arm64))
+                continue;
+            
+            // Handle Linux
+            if (!await TryProcess(release!, unityVersion, UnityPlatformID.Linux, Architecture.X64))
+                continue;
+            
+            // Handle MacOS
+            if (!await TryProcess(release!, unityVersion, UnityPlatformID.Mac, Architecture.X64)
+                || !await TryProcess(release!, unityVersion, UnityPlatformID.Mac, Architecture.Arm64))
+                continue;
             
             // Set Release as Public
             if (Config.GitHubUploadPackages)
@@ -79,7 +92,7 @@ internal static class Program
     private static Release? FindGitHubRelease(string unityVersion)
         => _githubReleases.FirstOrDefault(x => x.TagName == unityVersion);
 
-    private static async Task TryProcess(Release release,
+    private static async Task<bool> TryProcess(Release release,
         UnityVersion unityVersion,
         UnityPlatformID platform,
         Architecture architecture)
@@ -88,7 +101,8 @@ internal static class Program
         if (Directory.Exists(_tempDir))
             Directory.Delete(_tempDir, true);
         Directory.CreateDirectory(_tempDir);
-        
+
+        bool success = true;
         try
         {
             await PackageHandler.Process(release!, unityVersion, platform, architecture);
@@ -96,6 +110,7 @@ internal static class Program
         catch (Exception e)
         {
             Console.WriteLine(e);
+            success = false;
         }
         
         // Remove Temporary Directory
@@ -105,5 +120,6 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine("------");
         Console.WriteLine();
+        return success;
     }
 }

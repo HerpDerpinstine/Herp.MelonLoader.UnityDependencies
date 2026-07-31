@@ -48,7 +48,6 @@ internal static class GitHubAPI
     internal static async Task UploadFile(string filePath, Release? release)
     {
         string assetName = Path.GetFileName(filePath);
-        Console.WriteLine($"Uploading {assetName}");
         var provider = new FileExtensionContentTypeProvider();
         string contentType = provider.TryGetContentType(filePath, out var mime)
             ? mime
