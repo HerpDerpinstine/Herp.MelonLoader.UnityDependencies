@@ -1,11 +1,9 @@
-name: Fetch Dependencies
-
 on:
-  #schedule:
-  #  - cron: '20 */12 * * *'
-  #push:
-  #  branches: [ main ]
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      UPDATE_EXISTING:
+        required: true
+        type: boolean
 
 concurrency:
   group: generate
@@ -36,3 +34,5 @@ jobs:
           GitHubApiKey: ${{ secrets.GITHUB_TOKEN }}
           GitHubRepo: ${{ github.repository }}
           GitHubRepoBranch: main
+          GitHubUpdateExistingReleases: ${{ inputs.UPDATE_EXISTING }}
+          GitHubUploadPackages: true
