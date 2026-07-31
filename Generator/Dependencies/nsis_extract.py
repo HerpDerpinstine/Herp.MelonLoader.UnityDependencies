@@ -11,12 +11,15 @@ Supports:
 - Multi-block solid compression (e.g. 73f1)
 - Directory structure preservation
 """
+import bisect
+import shutil
 import struct
 import lzma
 import os
 import re
 import sys
 import glob
+from collections import defaultdict
 
 
 def find_installers():
@@ -153,59 +156,109 @@ class NSISDataScanner:
         self.data = data
         self.data_base = data_base
         self.blocks = []  # (phys_pos, comp_len, v_start, v_end)
+        self._v_starts = []  # parallel list of v_start for bisect lookups
         self.cache = {}
-        self.max_cache = 15
+        self.max_cache = 32
         self._scan()
 
     def _scan(self):
+        # Decompress the first block to discover the standard decompressed block size,
+        # then skip decompression for all subsequent blocks (just read the 3-byte nc to
+        # compute consumed bytes). Decompress the last block too, since it may be smaller.
         print("  Scanning blocks...")
         pos = self.data_base
         v_offset = 0
+        block_size = None  # decompressed size of a full block
+
         while pos + 3 < len(self.data):
-            dec_size_hint = -1
-            # Check for props byte 0x5D at pos+3
             if self.data[pos + 3] != 0x5D:
                 break
-            
-            # Use cached decompressor if possible to just get the consumed size
-            dec, consumed = decompress_nsis_lzma(self.data, pos)
-            if dec is None:
+            nc = self.data[pos] | (self.data[pos + 1] << 8) | ((self.data[pos + 2] & 0x7F) << 16)
+            if nc == 0 or pos + 3 + nc > len(self.data):
                 break
-            
-            d_len = len(dec)
+
+            if block_size is None:
+                # First block: decompress to find block_size and verify nc
+                dec, consumed = decompress_nsis_lzma(self.data, pos)
+                if dec is None:
+                    break
+                block_size = len(dec)
+                d_len = block_size
+            else:
+                consumed = 3 + nc
+                d_len = block_size  # assumed; corrected for last block below
+
             self.blocks.append((pos, consumed, v_offset, v_offset + d_len))
+            self._v_starts.append(v_offset)
             v_offset += d_len
             pos += consumed
-            if len(self.blocks) % 50 == 0:
+            if len(self.blocks) % 500 == 0:
                 print(f"    ... found {len(self.blocks)} blocks ({v_offset // 1024 // 1024}MB virtual)")
-        
+
+        # Correct the last block's decompressed size (it may be a partial block)
+        if len(self.blocks) > 1:
+            last = self.blocks[-1]
+            dec_last, _ = decompress_nsis_lzma(self.data, last[0])
+            if dec_last is not None and len(dec_last) != block_size:
+                self.blocks[-1] = (last[0], last[1], last[2], last[2] + len(dec_last))
+
         print(f"  Total: {len(self.blocks)} blocks, {v_offset // 1024 // 1024}MB virtual")
+
+    def _find_block(self, v_start):
+        """Binary search: return index of block containing v_start, or -1."""
+        idx = bisect.bisect_right(self._v_starts, v_start) - 1
+        if 0 <= idx < len(self.blocks) and self.blocks[idx][3] > v_start:
+            return idx
+        return -1
+
+    def _load_block(self, target):
+        if target not in self.cache:
+            if len(self.cache) >= self.max_cache:
+                self.cache.pop(next(iter(self.cache)))
+            dec, _ = decompress_nsis_lzma(self.data, self.blocks[target][0])
+            if dec is None:
+                return None
+            self.cache[target] = dec
+        return self.cache[target]
 
     def get_data(self, v_start, length):
         res = bytearray()
         needed = length
         curr_v = v_start
         while needed > 0:
-            target = -1
-            for i, b in enumerate(self.blocks):
-                if b[2] <= curr_v < b[3]:
-                    target = i
-                    break
-            if target == -1: break
-            
-            if target not in self.cache:
-                if len(self.cache) >= self.max_cache:
-                    self.cache.pop(next(iter(self.cache)))
-                dec, _ = decompress_nsis_lzma(self.data, self.blocks[target][0])
-                self.cache[target] = dec
-            
-            b_dec = self.cache[target]
+            target = self._find_block(curr_v)
+            if target == -1:
+                break
+            b_dec = self._load_block(target)
+            if b_dec is None:
+                break
             off = curr_v - self.blocks[target][2]
             to_read = min(needed, len(b_dec) - off)
+            if to_read <= 0:
+                break
             res.extend(b_dec[off:off + to_read])
             curr_v += to_read
             needed -= to_read
         return bytes(res)
+
+    def write_data(self, v_start, length, fileobj):
+        """Write length bytes from virtual offset v_start directly to fileobj (no buffering)."""
+        needed = length
+        curr_v = v_start
+        while needed > 0:
+            target = self._find_block(curr_v)
+            if target == -1:
+                break
+            b_dec = self._load_block(target)
+            if b_dec is None:
+                break
+            off = curr_v - self.blocks[target][2]
+            to_write = min(needed, len(b_dec) - off)
+            if to_write <= 0:
+                break
+            fileobj.write(b_dec[off:off + to_write])
+            curr_v += to_write
+            needed -= to_write
 
 
 def decompress_block_individual(data, pos):
@@ -265,7 +318,20 @@ def find_header_block(data, fh_off, loh):
         # accept any successful decompression that produces a plausible result.
         dec, consumed = decompress_nsis_lzma(data, nsis_off)
         if dec and len(dec) > 1024:
-            return nsis_off, 0, consumed, dec
+            # Some installers (e.g. Unity 6000.4.x) split the header across
+            # multiple consecutive LZMA blocks. Keep reading until we reach loh.
+            total_consumed = consumed
+            chunks = [dec]
+            pos = nsis_off + consumed
+            while sum(len(c) for c in chunks) < loh:
+                more, c = decompress_nsis_lzma(data, pos)
+                if not more or c == 0:
+                    break
+                chunks.append(more)
+                total_consumed += c
+                pos += c
+            full_dec = b''.join(chunks) if len(chunks) > 1 else dec
+            return nsis_off, 0, total_consumed, full_dec
     return None, 0, 0, None
 
 
@@ -308,7 +374,9 @@ def extract_one(installer, output_dir):
         if v[0] == 11: cdir = sanitize_path(decode_nsis_string(h_data, s_off, v[1]))
         elif v[0] == 20:
             name = sanitize_path(decode_nsis_string(h_data, s_off, v[2]))
-            if name: files.append((os.path.join(cdir, name) if cdir else name, v[3]))
+            if name:
+                off = ((v[4] << 32) | v[3]) if stride == 36 else v[3]
+                files.append((os.path.join(cdir, name) if cdir else name, off))
 
     # Detect data format by scanning from data_base:
     #
@@ -332,11 +400,17 @@ def extract_one(installer, output_dir):
             is_solid = False
             per_file_base = pos + 3
     if is_solid:
-        d_test = decompress_block_2021(data, data_base)
-        if d_test is not None:
-            is_solid = False
-            format_2021 = True
-            per_file_base = data_base
+        # Guard: if data_base itself is a valid NSIS LZMA block, it's a solid stream.
+        # decompress_block_2021 always returns non-None for raw-flagged blocks (flag
+        # bit7=0), and solid blocks have props=0x5D (bit7=0) — so 2021 detection fires
+        # as a false positive unless we test for NSIS LZMA first.
+        dec_nsis_check, _ = decompress_nsis_lzma(data, data_base)
+        if dec_nsis_check is None:
+            d_test = decompress_block_2021(data, data_base)
+            if d_test is not None:
+                is_solid = False
+                format_2021 = True
+                per_file_base = data_base
 
     fmt_name = 'Solid' if is_solid else ('2021-per-file' if format_2021 else 'Per-file')
     print(f"  Format: {fmt_name}. Extracting {len(files)} files → {output_dir}/")
@@ -345,31 +419,56 @@ def extract_one(installer, output_dir):
     extracted, errors = 0, 0
     os.makedirs(output_dir, exist_ok=True)
 
-    for path, off in files:
-        target = os.path.join(output_dir, path)
-        try:
-            if is_solid:
+    if is_solid:
+        # Group paths by virtual offset so each unique blob is decompressed once.
+        # Duplicates (same offset, different paths) get hardlinked from the first copy.
+        off_to_paths = defaultdict(list)
+        seen_pairs = set()
+        for path, off in files:
+            if (path, off) not in seen_pairs:
+                off_to_paths[off].append(path)
+                seen_pairs.add((path, off))
+
+        for off, paths in sorted(off_to_paths.items()):
+            first_target = os.path.join(output_dir, paths[0])
+            try:
                 hdr = scanner.get_data(off, 8)
                 sz = struct.unpack('<I', hdr[:4])[0]
-                fdata = scanner.get_data(off + 8, sz)
-            elif format_2021:
-                fdata = decompress_block_2021(data, per_file_base + off)
-            else:
-                fdata = decompress_block_individual(data, per_file_base + off)
-
-            if fdata is not None:
-                os.makedirs(os.path.dirname(target) or '.', exist_ok=True)
-                with open(target, 'wb') as f: f.write(fdata)
+                os.makedirs(os.path.dirname(first_target) or '.', exist_ok=True)
+                with open(first_target, 'wb') as f:
+                    scanner.write_data(off + 8, sz, f)
                 extracted += 1
-            else: errors += 1
-        except: errors += 1
+                for alt_path in paths[1:]:
+                    alt_target = os.path.join(output_dir, alt_path)
+                    os.makedirs(os.path.dirname(alt_target) or '.', exist_ok=True)
+                    try:
+                        os.link(first_target, alt_target)
+                    except OSError:
+                        shutil.copy2(first_target, alt_target)
+                    extracted += 1
+            except Exception:
+                errors += len(paths)
+    else:
+        for path, off in files:
+            target = os.path.join(output_dir, path)
+            try:
+                if format_2021:
+                    fdata = decompress_block_2021(data, per_file_base + off)
+                else:
+                    fdata = decompress_block_individual(data, per_file_base + off)
+                if fdata is not None:
+                    os.makedirs(os.path.dirname(target) or '.', exist_ok=True)
+                    with open(target, 'wb') as f: f.write(fdata)
+                    extracted += 1
+                else:
+                    errors += 1
+            except Exception:
+                errors += 1
 
     print(f"  Done! {extracted} files saved, {errors} errors.")
 
-
 def main():
     extract_one(sys.argv[1], sys.argv[2])
-
 
 if __name__ == "__main__":
     main()
