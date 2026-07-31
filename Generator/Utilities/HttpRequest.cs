@@ -48,10 +48,10 @@ internal static class HttpRequest
             if (read == 0)
                 break;
             await destination.WriteAsync(buffer.AsMemory(0, read));
+            totalRead += read;
             
             if (Config.WebRequestPrintDownloadProgress)
             {
-                totalRead += read;
                 double progress = Math.Truncate((double)(totalRead * 100.0 / length));
                 if (progress > lastProgress)
                 {
