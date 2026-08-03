@@ -44,21 +44,33 @@ internal static class Program
     private static async Task Main()
     {
         // Load Configuration
+        Console.WriteLine("Loading Environment Configuration...");
         Config.Load();
-        
+
         // Get All Releases
+        Console.WriteLine("Fetching GitHub Releases...");
         _githubReleases = GitHubAPI.GetAllReleasesAsync().Result;
+        Console.WriteLine("Fetching Unity Releases...");
         _unityReleases = UnityAPI.GetAvailableVersionsAsync(false, false).Result;
-        
+
         // Find Latest Version
+        Console.WriteLine("Finding Latest GitHub Release...");
         UnityVersion? latest = FindLatest();
+        if (latest != null)
+            Console.WriteLine($"Found: {latest.Value}");
 
         // Set All as Prereleases to signify Regeneration
-        if (Config.GitHubUploadPackages 
+        if (Config.GitHubUploadPackages
             && Config.GitHubUpdateExistingReleases)
+        {
+            Console.WriteLine("Applying Prerelease Tag to signify regeneration...");
             foreach (var release in _githubReleases)
                 if (release is { Draft: false } and { Prerelease: false })
+                {
+                    Console.WriteLine(release.TagName);
                     await GitHubAPI.SetReleaseType(release!, eReleaseType.Prelease);
+                }
+        }
 
         // Process Releases
         foreach (var unityVersion in _unityReleases)
@@ -69,6 +81,7 @@ internal static class Program
 
             // Find Release
             string tag = unityVersion.ToString();
+            Console.WriteLine($"Processing {tag}...");
             Release? release = FindGitHubRelease(tag);
             if (!string.IsNullOrEmpty(Config.UnityTargetVersion))
             {
