@@ -106,17 +106,9 @@ internal static class Program
             if (Config.GitHubUploadPackages)
             {
                 _ = GitHubAPI.SetupTag(tag).Result;
-                if (release == null)
-                    release = GitHubAPI.CreateRelease(tag, tag, _releaseBody, true).Result;
-            }
-
-            if (Config.GitHubUploadPackages && (release != null))
-            {
-                // Set as Draft
-                await GitHubAPI.SetReleaseType(release!, eReleaseType.Draft);
-                
-                // Clear Existing Files
-                await GitHubAPI.ClearFilesFromRelease(release!);
+                if (release != null)
+                    await GitHubAPI.DeleteRelease(release);
+                release = await GitHubAPI.CreateRelease(tag, tag, _releaseBody, true);
             }
 
             // Handle Packages
