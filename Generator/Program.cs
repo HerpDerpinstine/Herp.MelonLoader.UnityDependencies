@@ -103,13 +103,13 @@ internal static class Program
             }
 
             // Create Release
-            if (Config.GitHubUploadPackages
-                && (release == null))
+            if (Config.GitHubUploadPackages)
             {
-                _ = GitHubAPI.CreateTag(tag).Result;
-                release = GitHubAPI.CreateRelease(tag, tag, _releaseBody, true).Result;
+                _ = GitHubAPI.SetupTag(tag).Result;
+                if (release == null)
+                    release = GitHubAPI.CreateRelease(tag, tag, _releaseBody, true).Result;
             }
-            
+
             // Set as Draft
             if (Config.GitHubUploadPackages && (release != null))
                 await GitHubAPI.SetReleaseType(release!, eReleaseType.Draft);

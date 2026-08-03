@@ -89,17 +89,28 @@ internal static class GitHubAPI
         return await client.Repository.Release.Edit(_repoOwner, _repoName, id, update);
     }
 
-    internal static async Task<Reference> CreateTag(string tag)
+    internal static async Task<Reference> SetupTag(string tag)
     {
         // Get Client
         GitHubClient client = GetClient();
         
-        // Create Tag
+        // Find Existing Tag
+        string tagRef = $"refs/tags/{tag}";
         var commitSha = (await client.Repository.Branch.Get(_repoOwner, _repoName, Config.GitHubRepoBranch)).Commit.Sha;
-        Reference? refer = await client.Git.Reference.Get(_repoOwner, _repoName,commitSha);
+        Reference? refer = await client.Git.Reference.Get(_repoOwner, _repoName,tagRef);
         if (refer != null)
+        {
+            var update = new ReferenceUpdate(commitSha, force: true);
+            await client.Git.Reference.Update(
+                _repoOwner,
+                _repoName,
+                tagRef,
+                update);
             return refer;
-        return await client.Git.Reference.Create(_repoOwner, _repoName, new($"refs/tags/{tag}", commitSha));
+        }
+
+        // Create Tag
+        return await client.Git.Reference.Create(_repoOwner, _repoName, new(tagRef, commitSha));
     }
 
     internal static async Task UploadAsset(Release release,
