@@ -16,5 +16,7 @@ jobs:
     name: Fetch Dependencies
     uses: ./.github/workflows/generator.yml
     secrets: inherit
+    permissions:
+      contents: write
     with:
       UPDATE_EXISTING: false
