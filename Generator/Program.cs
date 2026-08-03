@@ -172,7 +172,7 @@ internal static class Program
                 && package.Bundle())
             {
                 if (Config.GitHubUploadPackages)
-                    package.Upload(release);
+                    await package.Upload(release);
             }
         }
         catch (Exception e)

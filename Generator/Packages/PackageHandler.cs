@@ -9,8 +9,8 @@ namespace Generator.Packages;
 public static class PackageHandler
 {
     private const string _searchPayload = "Payload";
-    
-    internal static string GetDownloadURL(UnityVersion unityVersion, 
+
+    private static string GetDownloadURL(UnityVersion unityVersion, 
         UnityPlatformID platformId,
         UnityPlatformID supportPlatform,
         Architecture arch,
@@ -18,6 +18,11 @@ public static class PackageHandler
     {
         if (setupType == ePackageType.Setup)
             return UnityAPI.GetSetupURL(unityVersion, platformId, arch);
+        
+        if ((platformId == UnityPlatformID.Windows)
+            && ((unityVersion.Major < 2018)
+                || unityVersion is { Major: 2018, Minor: < 1 }))
+            supportPlatform = UnityPlatformID.UWP;
         return UnityAPI.GetComponentURL(unityVersion, platformId, supportPlatform, UnityRuntimeID.IL2CPP);
     }
 

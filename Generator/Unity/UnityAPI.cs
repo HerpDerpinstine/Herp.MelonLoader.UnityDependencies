@@ -131,11 +131,6 @@ public static class UnityAPI
         string? osPrefix = Enum.GetName(supportPlatform);
         string versionStr = unityVersion.ToString();
         
-        if ((platform == UnityPlatformID.Windows)
-            && ((unityVersion.Major < 2018)
-                || unityVersion is { Major: 2018, Minor: < 1 }))
-            supportPlatform = UnityPlatformID.UWP;
-        
         string supportPrefix = string.Empty;
         if (supportPlatform != UnityPlatformID.Android)
             switch (supportRuntime)

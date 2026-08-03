@@ -42,12 +42,12 @@ internal class PackageBase
         return !string.IsNullOrEmpty(ExtractedPath);
     }
 
-    internal virtual bool Bundle() => true;
+    internal virtual bool Bundle() => false;
 
     internal virtual async Task Upload(Release release)
     {
         Console.WriteLine($"Uploading {PackageName}");
-        await GitHubAPI.UploadFile(PackagePath, release);
+        await GitHubAPI.UploadFile(PackagePath!, release);
     }
 
     internal bool FindTargetFolder()
