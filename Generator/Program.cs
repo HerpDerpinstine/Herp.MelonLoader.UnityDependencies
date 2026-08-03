@@ -35,7 +35,7 @@ internal static class Program
         new PackageArm64(UnityPlatformID.Mac),
     ];
 
-    private static IReadOnlyList<Release> _githubReleases = [];
+    private static List<Release> _githubReleases = [];
     private static IEnumerable<UnityVersion> _unityReleases = [];
 
     // Herp:
@@ -47,11 +47,16 @@ internal static class Program
         Console.WriteLine("Loading Environment Configuration...");
         Config.Load();
 
-        // Get All Releases
-        Console.WriteLine("Fetching GitHub Releases...");
-        _githubReleases = GitHubAPI.GetAllReleasesAsync().Result;
+        // Fetch Unity Releases
         Console.WriteLine("Fetching Unity Releases...");
         _unityReleases = UnityAPI.GetAvailableVersionsAsync(false, false).Result;
+        
+        // Fetch GitHub Releases
+        Console.WriteLine("Fetching GitHub Releases...");
+        _githubReleases = GitHubAPI.GetAllReleasesAsync().Result.ToList();
+        _githubReleases.RemoveAll(x =>
+            !UnityVersion.TryParse(x.TagName, string.Empty, out UnityVersion releaseVersion)
+            || !_unityReleases.Contains(releaseVersion));
 
         // Find Latest Version
         Console.WriteLine("Finding Latest GitHub Release...");

@@ -1,6 +1,6 @@
 namespace Generator;
 
-public struct UnityVersion
+public record struct UnityVersion
 {
     public required int Major { get; set; }
     public required int Minor { get; set; }
