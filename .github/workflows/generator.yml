@@ -1,15 +1,9 @@
-name: Fetch Dependencies
-
 on:
-  #schedule:
-  #  - cron: '20 */12 * * *'
-  #push:
-  #  branches: [ main ]
-  workflow_dispatch:
-
-concurrency:
-  group: generate
-  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+  workflow_call:
+    inputs:
+      UPDATE_EXISTING:
+        required: true
+        type: boolean
 
 jobs:
   fetchdeps:
@@ -37,4 +31,4 @@ jobs:
           GitHubRepo: ${{ github.repository }}
           GitHubRepoBranch: main
           GitHubUploadPackages: true
-          GitHubUpdateExistingReleases: ${{ github.event_name == 'workflow_dispatch' }}
+          GitHubUpdateExistingReleases: ${{ inputs.UPDATE_EXISTING }}
