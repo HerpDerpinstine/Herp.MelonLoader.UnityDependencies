@@ -75,6 +75,11 @@ internal static class Program
                     Console.WriteLine(release.TagName);
                     await GitHubAPI.SetReleaseType(release!, eReleaseType.Prelease);
                 }
+                else if (release.Draft)
+                {
+                    Console.WriteLine(release.TagName);
+                    await GitHubAPI.DeleteRelease(release);
+                }
         }
 
         // Process Releases

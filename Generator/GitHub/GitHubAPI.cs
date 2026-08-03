@@ -52,7 +52,7 @@ internal static class GitHubAPI
         var draftUpdate = release.ToUpdate();
         draftUpdate.Draft = (value == eReleaseType.Draft);
         draftUpdate.Prerelease = (value == eReleaseType.Prelease);
-        draftUpdate.MakeLatest = (value == eReleaseType.Latest) ? MakeLatestQualifier.True : MakeLatestQualifier.False;
+        //draftUpdate.MakeLatest = (value == eReleaseType.Latest) ? MakeLatestQualifier.True : MakeLatestQualifier.False;
         return await UpdateRelease(release.Id, draftUpdate);
     }
     
