@@ -120,7 +120,7 @@ public static class PackageHandler
         Console.WriteLine();
     }
 
-    internal static void Bundle(
+    internal static string Bundle(
         string packageName,
         string packagePath,
         params string[] targetPaths)
@@ -136,7 +136,7 @@ public static class PackageHandler
 
         string searchPattern = "*.dll";
         bool fileExists = File.Exists(packagePath);
-        using var managedZipStr = File.Open(packagePath, FileMode.OpenOrCreate, FileAccess.ReadWrite);
+        using var managedZipStr = File.Open(packagePath!, FileMode.OpenOrCreate, FileAccess.ReadWrite);
         using (var managedZip = new ZipArchive(managedZipStr, fileExists
                    ? ZipArchiveMode.Update
                    : ZipArchiveMode.Create, true))
@@ -144,6 +144,8 @@ public static class PackageHandler
                 BundleDirectory(managedZip, targetPath, searchPattern);
         managedZipStr.Close();
         Console.WriteLine();
+
+        return packagePath;
     }
 
     private static void BundleDirectory(ZipArchive archive, string searchDir, string searchPattern)

@@ -49,14 +49,12 @@ internal static class Program
 
         // Fetch Unity Releases
         Console.WriteLine("Fetching Unity Releases...");
-        _unityReleases = UnityAPI.GetAvailableVersionsAsync(false, false).Result;
+        _unityReleases = await UnityAPI.GetAvailableVersionsAsync(false, false);
         
         // Fetch GitHub Releases
         Console.WriteLine("Fetching GitHub Releases...");
-        _githubReleases = GitHubAPI.GetAllReleasesAsync().Result.ToList();
-        _githubReleases.RemoveAll(x =>
-            !UnityVersion.TryParse(x.TagName, string.Empty, out UnityVersion releaseVersion)
-            || !_unityReleases.Contains(releaseVersion));
+        var releasesReadOnly = await GitHubAPI.GetAllReleasesAsync();
+        _githubReleases = releasesReadOnly.ToList();
 
         // Find Latest Version
         Console.WriteLine("Finding Latest GitHub Release...");
@@ -68,18 +66,28 @@ internal static class Program
         if (Config.GitHubUploadPackages
             && Config.GitHubUpdateExistingReleases)
         {
+            Console.WriteLine("Pruning Tags...");
+            foreach (var tag in await GitHubAPI.GetAllTagsAsync())
+            {
+                string tagName = tag.Name;
+                if (FindGitHubRelease(tagName) == null)
+                {
+                    Console.WriteLine(tagName);
+                    await GitHubAPI.DeleteTagAsync(tagName);
+                }
+            }
+            
             Console.WriteLine("Applying Prerelease Tag to signify regeneration...");
-            foreach (var release in _githubReleases)
-                if (release is { Draft: false } and { Prerelease: false })
+            foreach (var unityVersion in _unityReleases)
+            {
+                string tag = unityVersion.ToString();
+                Release? ghRel = FindGitHubRelease(tag);
+                if (ghRel is { Draft: false } and { Prerelease: false })
                 {
-                    Console.WriteLine(release.TagName);
-                    await GitHubAPI.SetReleaseType(release!, eReleaseType.Prelease);
+                    Console.WriteLine(ghRel.TagName);
+                    await GitHubAPI.SetReleaseType(ghRel!, eReleaseType.Prelease);
                 }
-                else if (release.Draft)
-                {
-                    Console.WriteLine(release.TagName);
-                    await GitHubAPI.DeleteRelease(release);
-                }
+            }
         }
 
         // Process Releases
@@ -110,9 +118,13 @@ internal static class Program
             // Create Release
             if (Config.GitHubUploadPackages)
             {
-                _ = GitHubAPI.SetupTag(tag).Result;
                 if (release != null)
+                {
                     await GitHubAPI.DeleteRelease(release);
+                    release = null;
+                }
+                
+                await GitHubAPI.SetupTag(tag);
                 release = await GitHubAPI.CreateRelease(tag, tag, _releaseBody, true);
             }
 

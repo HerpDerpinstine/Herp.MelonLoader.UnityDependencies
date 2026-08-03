@@ -81,9 +81,9 @@ internal class PackageBase
             return false;
         }
 
-        PackageHandler.Bundle(
+        package.PackagePath = PackageHandler.Bundle(
             package.PackageName!, 
-            package.PackagePath!, 
+            package.PackagePath, 
             [ 
                 TargetPath!, 
                 package.TargetPath!

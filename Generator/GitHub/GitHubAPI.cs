@@ -38,13 +38,22 @@ internal static class GitHubAPI
         return await client.Repository.Release.GetAll(_repoOwner, _repoName);
     }
     
-    internal static async Task<IReadOnlyList<Release>> GetAllTagsAsync()
+    internal static async Task<IReadOnlyList<RepositoryTag>> GetAllTagsAsync()
     {
         // Get Client
         GitHubClient client = GetClient();
         
         // Get Releases
-        return await client.Repository.Release.GetAll(_repoOwner, _repoName);
+        return await client.Repository.GetAllTags(_repoOwner, _repoName);
+    }
+    
+    internal static async Task DeleteTagAsync(string tag)
+    {
+        // Get Client
+        GitHubClient client = GetClient();
+        
+        // Get Releases
+        await client.Git.Reference.Delete(_repoOwner, _repoName, $"tags/{tag}");
     }
 
     internal static async Task<Release> SetReleaseType(Release release, eReleaseType value)
@@ -86,7 +95,10 @@ internal static class GitHubAPI
         GitHubClient client = GetClient();
         
         // Delete Release
+        string tagName = release.TagName;
         await client.Repository.Release.Delete(_repoOwner, _repoName, release.Id);
+        string tagRef = $"refs/tags/{tagName}";
+        await client.Git.Reference.Delete(_repoOwner, _repoName, tagRef);
     }
 
     internal static async Task<Release> UpdateRelease(long id, ReleaseUpdate update)
@@ -98,28 +110,15 @@ internal static class GitHubAPI
         return await client.Repository.Release.Edit(_repoOwner, _repoName, id, update);
     }
 
-    internal static async Task<Reference> SetupTag(string tag)
+    internal static async Task SetupTag(string tag)
     {
         // Get Client
         GitHubClient client = GetClient();
-        
-        // Find Existing Tag
-        string tagRef = $"refs/tags/{tag}";
-        var commitSha = (await client.Repository.Branch.Get(_repoOwner, _repoName, Config.GitHubRepoBranch)).Commit.Sha;
-        Reference? refer = await client.Git.Reference.Get(_repoOwner, _repoName,tagRef);
-        if (refer != null)
-        {
-            var update = new ReferenceUpdate(commitSha, force: true);
-            await client.Git.Reference.Update(
-                _repoOwner,
-                _repoName,
-                tagRef,
-                update);
-            return refer;
-        }
 
         // Create Tag
-        return await client.Git.Reference.Create(_repoOwner, _repoName, new(tagRef, commitSha));
+        string tagRef = $"refs/tags/{tag}";
+        var commitSha = (await client.Repository.Branch.Get(_repoOwner, _repoName, Config.GitHubRepoBranch)).Commit.Sha;
+        await client.Git.Reference.Create(_repoOwner, _repoName, new(tagRef, commitSha));
     }
 
     internal static async Task UploadAsset(Release release,
