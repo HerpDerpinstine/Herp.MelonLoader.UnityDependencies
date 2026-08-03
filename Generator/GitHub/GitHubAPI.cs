@@ -37,6 +37,15 @@ internal static class GitHubAPI
         // Get Releases
         return await client.Repository.Release.GetAll(_repoOwner, _repoName);
     }
+    
+    internal static async Task<IReadOnlyList<Release>> GetAllTagsAsync()
+    {
+        // Get Client
+        GitHubClient client = GetClient();
+        
+        // Get Releases
+        return await client.Repository.Release.GetAll(_repoOwner, _repoName);
+    }
 
     internal static async Task<Release> SetReleaseType(Release release, eReleaseType value)
     {
@@ -44,14 +53,6 @@ internal static class GitHubAPI
         draftUpdate.Draft = (value == eReleaseType.Draft);
         draftUpdate.Prerelease = (value == eReleaseType.Prelease);
         draftUpdate.MakeLatest = (value == eReleaseType.Latest) ? MakeLatestQualifier.True : MakeLatestQualifier.False;
-        return await UpdateRelease(release.Id, draftUpdate);
-    }
-    
-    internal static async Task<Release> SetReleaseInfo(Release release, bool draft, bool prerelease)
-    {
-        var draftUpdate = release.ToUpdate();
-        draftUpdate.Draft = draft;
-        draftUpdate.Prerelease = prerelease;
         return await UpdateRelease(release.Id, draftUpdate);
     }
     
@@ -95,6 +96,9 @@ internal static class GitHubAPI
         
         // Create Tag
         var commitSha = (await client.Repository.Branch.Get(_repoOwner, _repoName, Config.GitHubRepoBranch)).Commit.Sha;
+        Reference? refer = await client.Git.Reference.Get(_repoOwner, _repoName,commitSha);
+        if (refer != null)
+            return refer;
         return await client.Git.Reference.Create(_repoOwner, _repoName, new($"refs/tags/{tag}", commitSha));
     }
 
