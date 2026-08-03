@@ -177,7 +177,13 @@ public static class PackageHandler
     
     internal static string GetPackageName(UnityPlatformID platformId, Architecture arch)
     {
-        return $"IL2CPP.{Enum.GetName(platformId)}.{Enum.GetName(arch)!.ToLowerInvariant()}.zip";
+        string platformName = Enum.GetName(platformId)!;
+        if (platformId == UnityPlatformID.Mac)
+            platformName = "MacOS";
+
+        string platformArch = Enum.GetName(arch)!.ToLowerInvariant();
+        
+        return $"IL2CPP.{platformName}.{platformArch}.zip";
     }
     
     internal static List<string> GetFilters(UnityPlatformID platformId, Architecture architecture, ePackageType setupType)
