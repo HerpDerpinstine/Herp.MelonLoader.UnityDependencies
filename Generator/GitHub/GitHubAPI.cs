@@ -38,10 +38,20 @@ internal static class GitHubAPI
         return await client.Repository.Release.GetAll(_repoOwner, _repoName);
     }
 
-    internal static async Task<Release> SetReleaseDraft(Release release, bool value)
+    internal static async Task<Release> SetReleaseType(Release release, eReleaseType value)
     {
         var draftUpdate = release.ToUpdate();
-        draftUpdate.Draft = value;
+        draftUpdate.Draft = (value == eReleaseType.Draft);
+        draftUpdate.Prerelease = (value == eReleaseType.Prelease);
+        draftUpdate.MakeLatest = (value == eReleaseType.Latest) ? MakeLatestQualifier.True : MakeLatestQualifier.False;
+        return await UpdateRelease(release.Id, draftUpdate);
+    }
+    
+    internal static async Task<Release> SetReleaseInfo(Release release, bool draft, bool prerelease)
+    {
+        var draftUpdate = release.ToUpdate();
+        draftUpdate.Draft = draft;
+        draftUpdate.Prerelease = prerelease;
         return await UpdateRelease(release.Id, draftUpdate);
     }
     

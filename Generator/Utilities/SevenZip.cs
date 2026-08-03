@@ -29,7 +29,7 @@ internal static class SevenZip
         proc.ErrorDataReceived += (_, eventArgs) => Console.WriteLine(eventArgs.Data); 
         await proc.WaitForExitAsync();
         
-        if (proc.ExitCode != 0)
-            throw new($"7z exit code: {proc.ExitCode}");
+        //if (proc.ExitCode != 0)
+        //    throw new($"7z exit code: {proc.ExitCode}");
     }
 }

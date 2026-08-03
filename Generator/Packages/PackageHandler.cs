@@ -1,201 +1,37 @@
 using System.IO.Compression;
 using System.Runtime.InteropServices;
+using System.Text;
 using Octokit;
 using FileMode = System.IO.FileMode;
 
-namespace Generator;
+namespace Generator.Packages;
 
 public static class PackageHandler
 {
-    private const string _searchMscorlib = "mscorlib.dll";
-    private const string _searchUnityEngine = "UnityEngine.dll";
     private const string _searchPayload = "Payload";
-
-    private enum eSetupType
-    {
-        SETUP,
-        SUPPORT,
-    }
     
-    public static async Task Process(Release release,
-        UnityVersion unityVersion, 
-        UnityPlatformID platformId,
-        Architecture arch)
-    {
-        // Download the Support Package
-        string supportDownload = await Download(unityVersion, platformId, arch, eSetupType.SUPPORT);
-        bool shouldHandleAndroid = (Config.UnityProcessAndroid && (platformId == UnityPlatformID.Mac) && (arch == Architecture.X64));
-        if (string.IsNullOrEmpty(supportDownload) && !shouldHandleAndroid)
-            return;
-        
-        // Download the Android Support for Mac on x64
-        string androidDownload = string.Empty;
-        if (shouldHandleAndroid)
-        {
-            androidDownload = await Download(unityVersion, UnityPlatformID.Android, arch, eSetupType.SUPPORT);
-            if (string.IsNullOrEmpty(androidDownload))
-                shouldHandleAndroid = false;
-        }
-        
-        // Download the Setup Package
-        string setupDownload = await Download(unityVersion, platformId, arch, eSetupType.SETUP);
-        if (string.IsNullOrEmpty(setupDownload))
-            return;
-
-        // Extract the Support Package
-        string? supportDirPath = Path.Combine(Program._tempDir, "Support");
-        if (!Directory.Exists(supportDirPath))
-            Directory.CreateDirectory(supportDirPath);
-        bool shouldProcessSupport = !string.IsNullOrEmpty(supportDownload);
-        if (shouldProcessSupport)
-        {
-            await Extract(platformId, supportDownload, supportDirPath);
-            
-            // Find Support Folder
-            List<string> supportFilters = GetFilters(platformId, arch, eSetupType.SUPPORT);
-            supportDirPath = FindFilteredFolder(supportDirPath, _searchUnityEngine, supportFilters);
-            if (string.IsNullOrEmpty(supportDirPath))
-            {
-                shouldProcessSupport = false;
-                Console.WriteLine("Could not find support folder");
-            }
-        }
-        
-        // Extract the Android Support for Mac on x64
-        string? androidDirPath = Path.Combine(Program._tempDir, "Android");
-        if (shouldHandleAndroid)
-        {
-            if (!Directory.Exists(androidDirPath))
-                Directory.CreateDirectory(androidDirPath);
-            
-            await Extract(platformId, androidDownload, androidDirPath);
-            
-            // Find Android Support Folder
-            List<string> androidFilters = GetFilters(UnityPlatformID.Android, arch, eSetupType.SUPPORT);
-            androidDirPath = FindFilteredFolder(androidDirPath, _searchUnityEngine, androidFilters);
-            if (string.IsNullOrEmpty(androidDirPath))
-            {
-                shouldHandleAndroid = false;
-                Console.WriteLine("Could not find android support folder");
-            }
-        }
-        if (!shouldProcessSupport && !shouldHandleAndroid)
-            return;
-
-        // Extract the Setup Package
-        string? setupDirPath = Path.Combine(Program._tempDir, "Setup");
-        string? androidSetupDirPath = setupDirPath;
-        if (!Directory.Exists(setupDirPath))
-            Directory.CreateDirectory(setupDirPath);
-        await Extract(platformId, setupDownload, setupDirPath);
-        
-        // Find Setup Folder
-        List<string> setupFilters = GetFilters(platformId, arch, eSetupType.SETUP);
-        setupDirPath = FindFilteredFolder(setupDirPath, _searchMscorlib, setupFilters);
-        if (string.IsNullOrEmpty(setupDirPath))
-            throw new Exception("Could not find setup folder");
-        
-        // Find Android Setup Folder
-        if (shouldHandleAndroid)
-        {
-            List<string> androidSetupFilters = GetFilters(UnityPlatformID.Android, arch, eSetupType.SETUP);
-            androidSetupDirPath = FindFilteredFolder(androidSetupDirPath, _searchMscorlib, androidSetupFilters);
-            if (string.IsNullOrEmpty(androidSetupDirPath))
-            {
-                shouldHandleAndroid = false;
-                Console.WriteLine("Could not find android setup folder");
-            }
-        }
-        if (!shouldProcessSupport && !shouldHandleAndroid)
-            return;
-
-        // Bundle Extracted Files
-        string packageName = string.Empty;
-        string packagePath = string.Empty; 
-        if (shouldProcessSupport)
-        {
-            packageName = GetPackageName(platformId, arch);
-            packagePath = Path.Combine(Program._tempDir, packageName);
-            Bundle(packageName, packagePath, setupDirPath, supportDirPath!);
-        }
-
-        // Bundle Android Files
-        string androidPackageName = string.Empty;
-        string androidPackagePath = string.Empty;
-        if (shouldHandleAndroid)
-        {
-            androidPackageName = GetPackageName(UnityPlatformID.Android, arch);
-            androidPackagePath = Path.Combine(Program._tempDir, androidPackageName);
-            Bundle(androidPackageName, androidPackagePath, androidSetupDirPath!, androidDirPath!);
-        }
-        
-        // Bundle x86
-        string x86PackageName = string.Empty;
-        string x86PackagePath = string.Empty;
-        bool shouldHandleX86 = (arch == Architecture.X64) && platformId is UnityPlatformID.Windows or UnityPlatformID.Mac;
-        if (shouldProcessSupport && shouldHandleX86)
-        {
-            // Find x86 Support Folder
-            List<string> x86SupportFilters = GetFilters(platformId, Architecture.X86, eSetupType.SUPPORT);
-            string? x86SupportDirPath = FindFilteredFolder(supportDirPath!, _searchUnityEngine, x86SupportFilters);
-            if (string.IsNullOrEmpty(x86SupportDirPath))
-            {
-                shouldHandleX86 = false;
-                Console.WriteLine("Could not find x86 support folder");
-            }
-            else
-            {
-                x86PackageName = GetPackageName(platformId, Architecture.X86);
-                x86PackagePath = Path.Combine(Program._tempDir, x86PackageName);
-                Bundle(x86PackageName, x86PackagePath, setupDirPath!, x86SupportDirPath!);
-            }
-        }
-        if (!shouldProcessSupport && !shouldHandleAndroid && !shouldHandleX86)
-            return;
-
-        // Upload the newly created Bundle
-        if (Config.GitHubUploadPackages)
-        {
-            if (shouldProcessSupport)
-            {
-                Console.WriteLine($"Uploading {packageName}");
-                await GitHubAPI.UploadFile(packagePath, release);
-            }
-
-            // Upload Android Bundle and Libs
-            if (shouldHandleAndroid)
-            {
-                // Android Bundle
-                Console.WriteLine($"Uploading {androidPackageName}");
-                await GitHubAPI.UploadFile(androidPackagePath, release);
-                
-                // Android Libs
-            }
-
-            // Upload x86 Bundle
-            if (shouldHandleX86)
-            {
-                Console.WriteLine($"Uploading {x86PackageName}");
-                await GitHubAPI.UploadFile(x86PackagePath, release);
-            }
-        }
-    }
-
-    private static string GetDownloadURL(UnityVersion unityVersion, 
+    internal static string GetDownloadURL(UnityVersion unityVersion, 
         UnityPlatformID platformId,
         UnityPlatformID supportPlatform,
         Architecture arch,
-        eSetupType setupType)
+        ePackageType setupType)
     {
-        if (setupType == eSetupType.SETUP)
+        if (setupType == ePackageType.Setup)
             return UnityAPI.GetSetupURL(unityVersion, platformId, arch);
         return UnityAPI.GetComponentURL(unityVersion, platformId, supportPlatform, UnityRuntimeID.IL2CPP);
     }
 
-    private static async Task<string> Download(UnityVersion unityVersion,
+    internal static void RecreateDirectory(string path)
+    {
+        if (Directory.Exists(path))
+            Directory.Delete(path, true);
+        Directory.CreateDirectory(path);
+    }
+
+    internal static async Task<string> Download(UnityVersion unityVersion,
         UnityPlatformID platformId,
         Architecture arch,
-        eSetupType setupType)
+        ePackageType setupType)
     {
         UnityPlatformID supportPlatform = platformId;
         if (platformId == UnityPlatformID.Android)
@@ -226,9 +62,10 @@ public static class PackageHandler
         return downloadPath;
     }
 
-    private static async Task Extract(UnityPlatformID platformId, string? downloadPath, string outputPath)
+    internal static async Task Extract(UnityPlatformID platformId, string? downloadPath, string outputPath)
     {
-        if (string.IsNullOrEmpty(downloadPath))
+        if (string.IsNullOrEmpty(downloadPath)
+            || !File.Exists(downloadPath))
             return;
         
         string downloadName = Path.GetFileName(downloadPath);
@@ -274,14 +111,14 @@ public static class PackageHandler
                 
                 break;
         }
+        
         Console.WriteLine();
     }
 
-    private static void Bundle(
+    internal static void Bundle(
         string packageName,
         string packagePath,
-        string setupDirPath,
-        string supportDirPath)
+        params string[] targetPaths)
     {
         Console.WriteLine($"Bundling {packageName}");
         
@@ -298,10 +135,8 @@ public static class PackageHandler
         using (var managedZip = new ZipArchive(managedZipStr, fileExists
                    ? ZipArchiveMode.Update
                    : ZipArchiveMode.Create, true))
-        {
-            BundleDirectory(managedZip, setupDirPath, searchPattern);
-            BundleDirectory(managedZip, supportDirPath, searchPattern);
-        }
+            foreach (var targetPath in targetPaths)
+                BundleDirectory(managedZip, targetPath, searchPattern);
         managedZipStr.Close();
         Console.WriteLine();
     }
@@ -319,7 +154,7 @@ public static class PackageHandler
         return null;
     }
     
-    private static string? FindFilteredFolder(string dirPath, string targetFile, List<string> filters)
+    internal static string? FindFilteredFolder(string dirPath, string targetFile, List<string> filters)
     {
         foreach (var file in Directory.EnumerateFiles(dirPath, targetFile, SearchOption.AllDirectories))
         {
@@ -333,24 +168,23 @@ public static class PackageHandler
         return null;
     }
     
-    private static string GetPackageName(UnityPlatformID platformId, Architecture arch)
+    internal static string GetPackageName(UnityPlatformID platformId, Architecture arch)
     {
-        if (platformId == UnityPlatformID.Android)
-            return "IL2CPP.AOT.Android.zip";
-        return $"IL2CPP.AOT.{Enum.GetName(platformId)}.{Enum.GetName(arch)!.ToLowerInvariant()}.zip";
+        return $"IL2CPP.{Enum.GetName(platformId)}.{Enum.GetName(arch)!.ToLowerInvariant()}.zip";
     }
     
-    private static List<string> GetFilters(UnityPlatformID platformId, Architecture architecture, eSetupType setupType)
+    internal static List<string> GetFilters(UnityPlatformID platformId, Architecture architecture, ePackageType setupType)
     {
         string arch = (architecture == Architecture.Arm64) 
             ? "arm64"
             : (architecture == Architecture.X86) 
                 ? "32" 
                 : "64";
+        
         switch (platformId)
         {
             case UnityPlatformID.Android:
-                if (setupType == eSetupType.SETUP)
+                if (setupType == ePackageType.Setup)
                 {
                     return
                     [
@@ -369,7 +203,7 @@ public static class PackageHandler
                 }
             
             case UnityPlatformID.Linux:
-                if (setupType == eSetupType.SETUP)
+                if (setupType == ePackageType.Setup)
                 {
                     return
                     [
@@ -390,8 +224,9 @@ public static class PackageHandler
                     ];
                 }
             
+            case UnityPlatformID.UWP:
             case UnityPlatformID.Windows:
-                if (setupType == eSetupType.SETUP)
+                if (setupType == ePackageType.Setup)
                 {
                     return
                     [
@@ -414,7 +249,7 @@ public static class PackageHandler
                 }
 
             case UnityPlatformID.Mac:
-                if (setupType == eSetupType.SETUP)
+                if (setupType == ePackageType.Setup)
                 {
                     return
                     [

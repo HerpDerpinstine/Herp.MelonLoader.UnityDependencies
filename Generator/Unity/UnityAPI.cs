@@ -128,34 +128,13 @@ public static class UnityAPI
         UnityPlatformID supportPlatform, 
         UnityRuntimeID supportRuntime = UnityRuntimeID.NONE)
     {
+        string? osPrefix = Enum.GetName(supportPlatform);
         string versionStr = unityVersion.ToString();
         
         if ((platform == UnityPlatformID.Windows)
             && ((unityVersion.Major < 2018)
                 || unityVersion is { Major: 2018, Minor: < 1 }))
             supportPlatform = UnityPlatformID.UWP;
-        
-        string platformPrefix;
-        string fileExt;
-        switch (platform)
-        {
-            case UnityPlatformID.Linux:
-                platformPrefix = "LinuxEditorTargetInstaller";
-                fileExt = ".tar.xz";
-                break;
-                
-            case UnityPlatformID.Mac:
-                platformPrefix = "MacEditorTargetInstaller";
-                fileExt = ".pkg";
-                break;
-                
-            case UnityPlatformID.Windows:
-            case UnityPlatformID.UWP:
-            default:
-                platformPrefix = "TargetSupportInstaller";
-                fileExt = ".exe";
-                break;
-        }
         
         string supportPrefix = string.Empty;
         if (supportPlatform != UnityPlatformID.Android)
@@ -174,7 +153,35 @@ public static class UnityAPI
                     break;
             }
         
-        string? osPrefix = Enum.GetName(supportPlatform);
+        string platformPrefix;
+        string fileExt;
+        switch (platform)
+        {
+            case UnityPlatformID.Linux:
+                platformPrefix = "LinuxEditorTargetInstaller";
+                fileExt = ".tar.xz";
+                break;
+                
+            case UnityPlatformID.Mac:
+                platformPrefix = "MacEditorTargetInstaller";
+                fileExt = ".pkg";
+                break;
+                
+            case UnityPlatformID.UWP:
+                if (unityVersion.Major >= 2019)
+                {
+                    osPrefix = "Universal-Windows-Platform";
+                    supportPrefix = string.Empty;
+                }
+                goto default;
+                
+            case UnityPlatformID.Windows:
+            default:
+                platformPrefix = "TargetSupportInstaller";
+                fileExt = ".exe";
+                break;
+        }
+        
         return $"https://download.unity3d.com/download_unity/{unityVersion.Id}/{platformPrefix}/UnitySetup-{osPrefix}{supportPrefix}-Support-for-Editor-{versionStr}{fileExt}";
     }
 }
