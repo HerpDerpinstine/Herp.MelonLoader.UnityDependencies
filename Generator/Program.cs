@@ -110,10 +110,15 @@ internal static class Program
                     release = GitHubAPI.CreateRelease(tag, tag, _releaseBody, true).Result;
             }
 
-            // Set as Draft
             if (Config.GitHubUploadPackages && (release != null))
+            {
+                // Set as Draft
                 await GitHubAPI.SetReleaseType(release!, eReleaseType.Draft);
-            
+                
+                // Clear Existing Files
+                await GitHubAPI.ClearFilesFromRelease(release!);
+            }
+
             // Handle Packages
             bool success = true;
             foreach (var package in _packages)

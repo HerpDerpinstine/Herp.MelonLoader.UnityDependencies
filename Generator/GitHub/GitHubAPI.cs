@@ -80,6 +80,18 @@ internal static class GitHubAPI
         });
     }
 
+    internal static async Task ClearFilesFromRelease(Release release)
+    {
+        // Get Client
+        GitHubClient client = GetClient();
+        
+        // Clear Assets
+        if (release.Assets.Any())
+            foreach (var asset in release.Assets)
+                await client.Repository.Release.DeleteAsset(_repoOwner, _repoName, asset.Id);
+
+    }
+
     internal static async Task<Release> UpdateRelease(long id, ReleaseUpdate update)
     {
         // Get Client
