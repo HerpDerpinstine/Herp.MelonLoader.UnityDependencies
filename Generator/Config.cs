@@ -26,6 +26,7 @@ internal static class Config
     internal static string GitHubRepoBranch = string.Empty;
     internal static bool GitHubUploadPackages;
     internal static bool GitHubUpdateExistingReleases;
+    internal static bool GitHubPurgeExistingReleases;
 
     #endregion
 
@@ -50,13 +51,12 @@ internal static class Config
         
         // GitHub
         GitHubTimeout = GetEnvInt(nameof(GitHubTimeout), GitHubTimeout);
-        
         GitHubApiKey = GetEnvString(nameof(GitHubApiKey), GitHubApiKey);
         GitHubRepo = GetEnvString(nameof(GitHubRepo), GitHubRepo);
         GitHubRepoBranch = GetEnvString(nameof(GitHubRepoBranch), GitHubRepoBranch);
-        
         GitHubUploadPackages = GetEnvBool(nameof(GitHubUploadPackages), GitHubUploadPackages);
         GitHubUpdateExistingReleases = GetEnvBool(nameof(GitHubUpdateExistingReleases), GitHubUpdateExistingReleases);
+        GitHubPurgeExistingReleases = GetEnvBool(nameof(GitHubPurgeExistingReleases), GitHubPurgeExistingReleases);
         
         // Validate Values
         Validate();

@@ -1,6 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 using Generator.Packages;
 using Octokit;
+using Semver;
 
 namespace Generator;
 
@@ -14,6 +15,7 @@ internal static class Program
     private static readonly UnityVersion _minVersion = new() 
     { 
         Id = string.Empty, 
+        SemVer = new SemVersion(5, 3, 0, [ new("b"), new(1) ]),
         Major = 5, 
         Minor = 3,
         Patch = 0, 
@@ -82,6 +84,31 @@ internal static class Program
             
             if (Config.GitHubUpdateExistingReleases)
             {
+                if (Config.GitHubPurgeExistingReleases)
+                    Console.WriteLine("Purging Existing Releases...");
+                else
+                    Console.WriteLine("Applying Prerelease Tag to signify regeneration...");
+                foreach (var unityVersion in _unityReleases)
+                {
+                    string tag = unityVersion.ToString();
+                    Release? ghRel = FindGitHubRelease(tag);
+                    if (ghRel == null)
+                        continue;
+
+                    if (Config.GitHubPurgeExistingReleases)
+                    {
+                        Console.WriteLine(ghRel.TagName);
+                        await GitHubAPI.DeleteRelease(ghRel);
+                        continue;
+                    }
+                    
+                    if (ghRel is { Draft: false } and { Prerelease: false })
+                    {
+                        Console.WriteLine(ghRel.TagName);
+                        await GitHubAPI.SetReleaseType(ghRel!, eReleaseType.Prelease);
+                    }
+                }
+                
                 Console.WriteLine("Pruning Tags without Releases...");
                 foreach (var tag in _githubTags)
                 {
@@ -92,18 +119,6 @@ internal static class Program
                         await GitHubAPI.DeleteTagAsync(tagName);
                     }
                 }
-
-                Console.WriteLine("Applying Prerelease Tag to signify regeneration...");
-                foreach (var unityVersion in _unityReleases)
-                {
-                    string tag = unityVersion.ToString();
-                    Release? ghRel = FindGitHubRelease(tag);
-                    if (ghRel is { Draft: false } and { Prerelease: false })
-                    {
-                        Console.WriteLine(ghRel.TagName);
-                        await GitHubAPI.SetReleaseType(ghRel!, eReleaseType.Prelease);
-                    }
-                }
             }
         }
 
@@ -112,7 +127,7 @@ internal static class Program
         foreach (var unityVersion in _unityReleases)
         {
             // Exclude versions that aren't supported by extraction
-            if (UnityVersionComparer.Instance.Compare(unityVersion, _minVersion) <= 0)
+            if (unityVersion.SemVer.ComparePrecedenceTo(_minVersion.SemVer) <= 0)
                 continue;
             
             // Exclude versions that aren't specifically targeted
@@ -174,7 +189,7 @@ internal static class Program
             if (Config.GitHubUploadPackages)
             {
                 if ((githubLatest == null)
-                    || (UnityVersionComparer.Instance.Compare(githubLatest.Value, unityVersion) <= 0))
+                    || (githubLatest.Value.SemVer.ComparePrecedenceTo(githubLatest.Value.SemVer) <= 0))
                 {
                     githubLatest = unityVersion;
                     await GitHubAPI.SetReleaseType(githubRelease!, eReleaseType.Latest);
@@ -199,7 +214,7 @@ internal static class Program
                 if (!UnityVersion.TryParse(release.TagName, string.Empty, out UnityVersion releaseVersion))
                     continue;
                 if ((latest == null)
-                    || (UnityVersionComparer.Instance.Compare(latest.Value, releaseVersion) <= 0))
+                    || (latest.Value.SemVer.ComparePrecedenceTo(releaseVersion.SemVer) <= 0))
                     latest = releaseVersion;
             }
         return latest;

@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Semver;
 
 namespace Generator;
 
@@ -43,12 +44,12 @@ public static class UnityAPI
 
             skip += resp.Data.GetUnityReleases.Edges.Length;
         }
-
-        // Order by Oldest to Newest
-        result.Sort(UnityVersionComparer.Instance);
         
         // Return Distinct to remove Duplicates
-        return result.DistinctBy(x => x.Id);
+        return result
+            .DistinctBy(x => x.Id)
+            .OrderBy(x => x.SemVer,
+                Comparer<SemVersion>.Create((a, b) => a.CompareSortOrderTo(b)));
     }
 
     private static async Task<GetUnityReleasesResponse> GetUnityReleasesAsync(int limit, int skip)

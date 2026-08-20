@@ -101,7 +101,7 @@ internal static class GitHubAPI
         });
     }
 
-    internal static async Task UpdateRelease(long id, ReleaseUpdate update)
+    private static async Task UpdateRelease(long id, ReleaseUpdate update)
     {
         // Get Client
         GitHubClient client = GetClient();
@@ -109,6 +109,16 @@ internal static class GitHubAPI
         // Update Release
         await client.Repository.Release.Edit(_repoOwner, _repoName, id, update);
     }
+    
+    internal static async Task DeleteRelease(Release release)
+    {
+        // Get Client
+        GitHubClient client = GetClient();
+        
+        // Delete Release
+        await client.Repository.Release.Delete(_repoOwner, _repoName, release.Id);
+    }
+
 
     internal static async Task CreateGitTag(string tag, string message)
     {
