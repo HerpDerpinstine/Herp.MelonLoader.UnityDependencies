@@ -71,9 +71,12 @@ internal static class Config
         GitHubTimeout = Math.Clamp(GitHubTimeout, 30, GitHubTimeout);
         
         // GitHub
-        ValidateString(nameof(GitHubApiKey), GitHubApiKey);
-        ValidateString(nameof(GitHubRepo), GitHubRepo);
-        ValidateString(nameof(GitHubRepoBranch), GitHubRepoBranch);
+        if (GitHubUploadPackages)
+        {
+            ValidateString(nameof(GitHubApiKey), GitHubApiKey);
+            ValidateString(nameof(GitHubRepo), GitHubRepo);
+            ValidateString(nameof(GitHubRepoBranch), GitHubRepoBranch);
+        }
     }
 
     private static void ValidateString(string name, 
