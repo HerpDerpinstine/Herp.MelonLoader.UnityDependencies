@@ -211,15 +211,10 @@ internal static class Program
         UnityVersion unityVersion)
     {
         // Create Temporary Directory
-        if (!Config.KeepTempFolder)
-        {
-            if (Directory.Exists(_tempDir))
-            {
-                Directory.Delete(_tempDir, true);
-                Directory.CreateDirectory(_tempDir);
-            }
-        }
-        else if (!Directory.Exists(_tempDir))
+        if (!Config.KeepTempFolder
+            && Directory.Exists(_tempDir))
+            Directory.Delete(_tempDir, true);
+        if (!Directory.Exists(_tempDir))
             Directory.CreateDirectory(_tempDir);
 
         // Process Package
