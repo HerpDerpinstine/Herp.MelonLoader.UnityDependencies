@@ -2,7 +2,7 @@ name: Fetch Missing Dependencies
 
 on:
   schedule:
-    - cron: '20 */12 * * *'
+    - cron: '0 * * * *'
   push:
     branches: [ main ]
   workflow_dispatch:
