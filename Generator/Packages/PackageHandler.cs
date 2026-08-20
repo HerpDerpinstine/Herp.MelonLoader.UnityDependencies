@@ -120,32 +120,30 @@ public static class PackageHandler
         Console.WriteLine();
     }
 
-    internal static string Bundle(
-        string packageName,
-        string packagePath,
-        params string[] targetPaths)
+    internal static void Bundle(PackageBase setupPackage, PackageBase componentPackage)
     {
+        string packageName = componentPackage.PackageName!;
         Console.WriteLine($"Bundling {packageName}");
         
         if (!string.IsNullOrEmpty(Config.UnityOutputDirectory))
         {
             if (!Directory.Exists(Config.UnityOutputDirectory))
                 Directory.CreateDirectory(Config.UnityOutputDirectory);
-            packagePath = Path.Combine(Config.UnityOutputDirectory, packageName);
+            componentPackage.PackagePath = Path.Combine(Config.UnityOutputDirectory, packageName);
         }
 
         string searchPattern = "*.dll";
-        bool fileExists = File.Exists(packagePath);
-        using var managedZipStr = File.Open(packagePath!, FileMode.OpenOrCreate, FileAccess.ReadWrite);
+        bool fileExists = File.Exists(componentPackage.PackagePath);
+        using var managedZipStr = File.Open(componentPackage.PackagePath!, FileMode.OpenOrCreate, FileAccess.ReadWrite);
         using (var managedZip = new ZipArchive(managedZipStr, fileExists
                    ? ZipArchiveMode.Update
                    : ZipArchiveMode.Create, true))
-            foreach (var targetPath in targetPaths)
-                BundleDirectory(managedZip, targetPath, searchPattern);
+        {
+            BundleDirectory(managedZip, setupPackage.TargetPath!, searchPattern);
+            BundleDirectory(managedZip, componentPackage.TargetPath!, searchPattern);
+        }
         managedZipStr.Close();
         Console.WriteLine();
-
-        return packagePath;
     }
 
     private static void BundleDirectory(ZipArchive archive, string searchDir, string searchPattern)
@@ -193,96 +191,66 @@ public static class PackageHandler
             : (architecture == Architecture.X86) 
                 ? "32" 
                 : "64";
-        
+
+        List<string> paths = new();
         switch (platformId)
         {
             case UnityPlatformID.Android:
                 if (setupType == ePackageType.Setup)
-                {
-                    return
-                    [
-                        "/MonoBleedingEdge/lib/mono/unityaot-android",
-                        "/MonoBleedingEdge/lib/mono/unityaot",
-                        "/MonoBleedingEdge/lib/mono/unity_aot",
-                        "/MonoBleedingEdge/lib/mono/unity",
-                    ];
-                }
-                else
-                {
-                    return
-                    [
-                        "/Variations/il2cpp/Managed",
-                    ];
-                }
-            
-            case UnityPlatformID.Linux:
-                if (setupType == ePackageType.Setup)
-                {
-                    return
-                    [
-                        "/MonoBleedingEdge/lib/mono/unityaot-linux",
-                        "/MonoBleedingEdge/lib/mono/unityaot",
-                        "/MonoBleedingEdge/lib/mono/unity_aot",
-                        "/MonoBleedingEdge/lib/mono/unity",
-                    ];
-                }
-                else
-                {
-                    return [
-                        $"/Variations/linux_{arch}_player_nondevelopment_il2cpp/Data/Managed",
-                        $"/Variations/linux_{arch}_nondevelopment_il2cpp/Data/Managed",
-                        $"/Variations/linux{arch}_player_nondevelopment_il2cpp/Data/Managed",
-                        $"/Variations/linux{arch}_nondevelopment_il2cpp/Data/Managed",
-                        "/Variations/il2cpp/Managed",
-                    ];
-                }
+                    paths.Add("/MonoBleedingEdge/lib/mono/unityaot-android");
+                break;
             
             case UnityPlatformID.UWP:
             case UnityPlatformID.Windows:
                 if (setupType == ePackageType.Setup)
-                {
-                    return
-                    [
-                        "/MonoBleedingEdge/lib/mono/unityaot-win32",
-                        "/MonoBleedingEdge/lib/mono/unityaot",
-                        "/MonoBleedingEdge/lib/mono/unity_aot",
-                        "/MonoBleedingEdge/lib/mono/unity",
-                    ];
-                }
+                    paths.Add("/MonoBleedingEdge/lib/mono/unityaot-win32");
                 else
                 {
-                    return [
-                        $"/Variations/win_{arch}_player_nondevelopment_il2cpp/Data/Managed",
-                        $"/Variations/win_{arch}_nondevelopment_il2cpp/Data/Managed",
-                        $"/Variations/win{arch}_player_nondevelopment_il2cpp/Data/Managed",
-                        $"/Variations/win{arch}_nondevelopment_il2cpp/Data/Managed",
-                        "/Variations/il2cpp/Managed",
-                        "/Managed/il2cpp"
-                    ];
+                    paths.Add($"/Variations/win_{arch}_player_nondevelopment_il2cpp/Data/Managed");
+                    paths.Add($"/Variations/win_{arch}_nondevelopment_il2cpp/Data/Managed");
+                    paths.Add($"/Variations/win{arch}_player_nondevelopment_il2cpp/Data/Managed");
+                    paths.Add($"/Variations/win{arch}_nondevelopment_il2cpp/Data/Managed");
                 }
+                break;
+            
+            case UnityPlatformID.Linux:
+                if (setupType == ePackageType.Setup)
+                    paths.Add("/MonoBleedingEdge/lib/mono/unityaot-linux");
+                else
+                {
+                    paths.Add($"/Variations/linux_{arch}_player_nondevelopment_il2cpp/Data/Managed");
+                    paths.Add($"/Variations/linux_{arch}_nondevelopment_il2cpp/Data/Managed");
+                    paths.Add($"/Variations/linux{arch}_player_nondevelopment_il2cpp/Data/Managed");
+                    paths.Add($"/Variations/linux{arch}_nondevelopment_il2cpp/Data/Managed");
+                    
+                }
+                break;
 
             case UnityPlatformID.Mac:
                 if (setupType == ePackageType.Setup)
-                {
-                    return
-                    [
-                        "/MonoBleedingEdge/lib/mono/unityaot-macos",
-                        "/MonoBleedingEdge/lib/mono/unityaot",
-                        "/MonoBleedingEdge/lib/mono/unity_aot",
-                        "/MonoBleedingEdge/lib/mono/unity",
-                    ];
-                }
+                    paths.Add("/MonoBleedingEdge/lib/mono/unityaot-macos");
                 else
                 {
-                    return [
-                        $"/Variations/macos_x{arch}_player_nondevelopment_il2cpp/Data/Managed",
-                        $"/Variations/macos_x{arch}_nondevelopment_il2cpp/Data/Managed",
-                        $"/Variations/macosx{arch}_player_nondevelopment_il2cpp/Data/Managed",
-                        $"/Variations/macosx{arch}_nondevelopment_il2cpp/Data/Managed",
-                        "/Variations/il2cpp/Managed",
-                    ];
+                    paths.Add($"/Variations/macos_x{arch}_player_nondevelopment_il2cpp/Data/Managed");
+                    paths.Add($"/Variations/macos_x{arch}_nondevelopment_il2cpp/Data/Managed");
+                    paths.Add($"/Variations/macosx{arch}_player_nondevelopment_il2cpp/Data/Managed");
+                    paths.Add($"/Variations/macosx{arch}_nondevelopment_il2cpp/Data/Managed");
                 }
+                break;
         }
-        return new();
+
+        if (setupType == ePackageType.Setup)
+        {
+            paths.Add("/MonoBleedingEdge/lib/mono/unityaot");
+            paths.Add("/MonoBleedingEdge/lib/mono/unity_aot");
+            paths.Add("/MonoBleedingEdge/lib/mono/unity");
+        }
+        else
+        {
+            paths.Add("/Variations/il2cpp/Managed");
+            paths.Add("/Managed/il2cpp");
+        }
+        
+        return paths;
     }
 }

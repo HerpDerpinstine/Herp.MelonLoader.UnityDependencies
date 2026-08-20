@@ -24,15 +24,15 @@ internal static class Program
     private static readonly PackageBase[] _packages =
     [
         // Windows
-        new PackagePC(UnityPlatformID.Windows),
-        new PackageArm64(UnityPlatformID.Windows),
+        new PackageDownload(UnityPlatformID.Windows, Architecture.X64),
+        new PackageDownload(UnityPlatformID.Windows, Architecture.Arm64),
         
         // Linux
-        new PackagePC(UnityPlatformID.Linux),
+        new PackageDownload(UnityPlatformID.Linux, Architecture.X64),
         
         // MacOS
-        new PackageMacOS(),
-        new PackageArm64(UnityPlatformID.Mac),
+        new PackageDownload(UnityPlatformID.Mac, Architecture.X64),
+        new PackageDownload(UnityPlatformID.Mac, Architecture.Arm64),
     ];
 
     private static IEnumerable<UnityVersion> _unityReleases = [];
@@ -49,7 +49,7 @@ internal static class Program
         
         // Fetch GitHub Releases
         if (print)
-            Console.WriteLine("Fetching GitHub Tags...");
+            Console.WriteLine("Fetching GitHub Releases...");
         var releaseReadOnly = await GitHubAPI.GetAllReleasesAsync();
         _githubReleases = releaseReadOnly.ToList();
     }
@@ -66,6 +66,11 @@ internal static class Program
         // Fetch Unity Releases
         Console.WriteLine("Fetching Unity Releases...");
         _unityReleases = await UnityAPI.GetAvailableVersionsAsync(false, false);
+        if (_unityReleases.Count() <= 0)
+        {
+            Console.WriteLine("Failed to Fetch Unity Releases!");
+            return;
+        }
         
         // Set All as Prereleases to signify Regeneration
         UnityVersion? githubLatest = null;
@@ -103,6 +108,7 @@ internal static class Program
         }
 
         // Process Releases
+        Console.WriteLine();
         foreach (var unityVersion in _unityReleases)
         {
             // Exclude versions that aren't supported by extraction
@@ -124,7 +130,7 @@ internal static class Program
                 githubTag = FindGitHubTag(tag);
                 if (githubTag == null)
                 {
-                    await GitHubAPI.CreateGitTag(tag);
+                    await GitHubAPI.CreateGitTag(tag, _releaseBody);
                     await RefreshGitHub();
                     githubTag = FindGitHubTag(tag);
                 }
@@ -143,14 +149,16 @@ internal static class Program
                         continue;
                     
                     // Clear Release of Assets
+                    Console.WriteLine($"Pruning Existing Assets...");
                     foreach (var asset in await GitHubAPI.GetAllReleaseAssets(githubRelease))
                         await GitHubAPI.DeleteAsset(asset);
                 }
             }
             
-            Console.WriteLine($"Processing {tag}...");
 
             // Handle Packages
+            Console.WriteLine($"Processing {tag}...");
+            Console.WriteLine();
             bool success = true;
             foreach (var package in _packages)
             {
@@ -203,19 +211,24 @@ internal static class Program
         UnityVersion unityVersion)
     {
         // Create Temporary Directory
-        PackageHandler.RecreateDirectory(_tempDir);
+        if (!Config.KeepTempFolder)
+        {
+            if (Directory.Exists(_tempDir))
+            {
+                Directory.Delete(_tempDir, true);
+                Directory.CreateDirectory(_tempDir);
+            }
+        }
+        else if (!Directory.Exists(_tempDir))
+            Directory.CreateDirectory(_tempDir);
 
         // Process Package
         bool success = true;
         try
         {
             if (await package.Download(unityVersion)
-                && await package.Extract()
-                && package.Bundle())
-            {
-                if (Config.GitHubUploadPackages)
-                    await package.Upload(release!);
-            }
+                && await package.Extract())
+                await package.Bundle(release);
         }
         catch (Exception e)
         {
@@ -224,7 +237,8 @@ internal static class Program
         }
         
         // Remove Temporary Directory
-        if (Directory.Exists(_tempDir))
+        if (!Config.KeepTempFolder
+            && Directory.Exists(_tempDir))
             Directory.Delete(_tempDir, true);
         
         Console.WriteLine();

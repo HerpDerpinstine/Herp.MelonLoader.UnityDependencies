@@ -14,10 +14,10 @@ internal class PackageBase
 
     internal string? DownloadPath { get; set; }
     internal string? ExtractedPath { get; set; }
-    private string? TargetPath { get; set; }
+    internal string? TargetPath { get; private set; }
 
-    private string? PackageName { get; set; }
-    private string? PackagePath { get; set; }
+    internal string? PackageName { get; private set; }
+    internal string? PackagePath { get; set; }
 
     private List<string>? TargetFilters { get; set; }
 
@@ -34,7 +34,7 @@ internal class PackageBase
             return false;
         
         // Extract the Package
-        ExtractedPath = Path.Combine(Program._tempDir, Enum.GetName(Type)!, Path.GetFileNameWithoutExtension(DownloadPath));
+        ExtractedPath = Path.Combine(Program._tempDir, Enum.GetName(Type)!);
         PackageHandler.RecreateDirectory(ExtractedPath);
         await PackageHandler.Extract(Platform, DownloadPath, ExtractedPath);
         
@@ -42,10 +42,14 @@ internal class PackageBase
         return !string.IsNullOrEmpty(ExtractedPath);
     }
 
-    internal virtual bool Bundle() => false;
+    internal virtual async Task Bundle(Release? release) => await Task.CompletedTask;
 
-    internal virtual async Task Upload(Release release)
+    internal virtual async Task Upload(Release? release)
     {
+        if (!Config.GitHubUploadPackages
+            || (release == null))
+            return;
+        
         Console.WriteLine($"Uploading {PackageName}");
         await GitHubAPI.UploadFile(PackagePath!, release);
     }
@@ -81,13 +85,7 @@ internal class PackageBase
             return false;
         }
 
-        package.PackagePath = PackageHandler.Bundle(
-            package.PackageName!, 
-            package.PackagePath, 
-            [ 
-                TargetPath!, 
-                package.TargetPath!
-            ]);
+        PackageHandler.Bundle(this, package);
         return true;
     }
 }

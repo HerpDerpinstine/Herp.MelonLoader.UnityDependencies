@@ -3,6 +3,9 @@
 internal static class Config
 {
     #region Internal Members
+    
+    // General
+    internal static bool KeepTempFolder;
 
     // Web Requests
     internal static string WebRequestUserAgent = "Unity web player";
@@ -30,6 +33,9 @@ internal static class Config
 
     internal static void Load()
     {
+        // General
+        KeepTempFolder = GetEnvBool(nameof(KeepTempFolder), KeepTempFolder);
+        
         // Web Requests
         WebRequestUserAgent = GetEnvString(nameof(WebRequestUserAgent), WebRequestUserAgent);
         WebRequestTimeout = GetEnvInt(nameof(WebRequestTimeout), WebRequestTimeout);

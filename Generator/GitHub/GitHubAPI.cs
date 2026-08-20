@@ -110,7 +110,7 @@ internal static class GitHubAPI
         await client.Repository.Release.Edit(_repoOwner, _repoName, id, update);
     }
 
-    internal static async Task CreateGitTag(string tag, string? message = null)
+    internal static async Task CreateGitTag(string tag, string message)
     {
         // Get Client
         GitHubClient client = GetClient();

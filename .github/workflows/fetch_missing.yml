@@ -9,7 +9,7 @@ on:
 
 concurrency:
   group: generate
-  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+  cancel-in-progress: true
 
 jobs:
   fetchdeps:
