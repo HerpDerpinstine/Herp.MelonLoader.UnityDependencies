@@ -39,12 +39,7 @@ public record struct UnityVersion
         if (string.IsNullOrEmpty(revision))
             revision = "1";
 
-        SemVersion? semVer = null;
-        if (type == "f")
-            semVer = SemVersion.Parse($"{version}+f.{revision}");
-        else
-            semVer = SemVersion.Parse($"{version}-{type}.{revision}");
-
+        SemVersion semVer = SemVersion.Parse($"{version}-{type}.{revision}");
         unityVersion = new()
         {
             Id = id,
