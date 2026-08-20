@@ -24,15 +24,15 @@ internal static class Program
     private static readonly PackageBase[] _packages =
     [
         // Windows
-        //new PackagePC(UnityPlatformID.Windows),
-        //new PackageArm64(UnityPlatformID.Windows),
+        new PackagePC(UnityPlatformID.Windows),
+        new PackageArm64(UnityPlatformID.Windows),
         
         // Linux
-        //new PackagePC(UnityPlatformID.Linux),
+        new PackagePC(UnityPlatformID.Linux),
         
         // MacOS
         new PackageMacOS(),
-        //new PackageArm64(UnityPlatformID.Mac),
+        new PackageArm64(UnityPlatformID.Mac),
     ];
 
     private static IEnumerable<UnityVersion> _unityReleases = [];
