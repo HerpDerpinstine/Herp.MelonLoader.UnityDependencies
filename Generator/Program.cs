@@ -35,8 +35,24 @@ internal static class Program
         new PackageArm64(UnityPlatformID.Mac),
     ];
 
-    private static List<Release> _githubReleases = [];
     private static IEnumerable<UnityVersion> _unityReleases = [];
+    private static List<RepositoryTag> _githubTags = [];
+    private static List<Release> _githubReleases = [];
+
+    private static async Task RefreshGitHub(bool print = false)
+    {
+        // Fetch GitHub Tags
+        if (print)
+            Console.WriteLine("Fetching GitHub Tags...");
+        var tagReadOnly = await GitHubAPI.GetAllTagsAsync();
+        _githubTags = tagReadOnly.ToList();
+        
+        // Fetch GitHub Releases
+        if (print)
+            Console.WriteLine("Fetching GitHub Tags...");
+        var releaseReadOnly = await GitHubAPI.GetAllReleasesAsync();
+        _githubReleases = releaseReadOnly.ToList();
+    }
 
     // Herp:
     // Releases set as Draft signify generation failure/cancellation
@@ -51,41 +67,37 @@ internal static class Program
         Console.WriteLine("Fetching Unity Releases...");
         _unityReleases = await UnityAPI.GetAvailableVersionsAsync(false, false);
         
-        // Fetch GitHub Releases
-        Console.WriteLine("Fetching GitHub Releases...");
-        var releasesReadOnly = await GitHubAPI.GetAllReleasesAsync();
-        _githubReleases = releasesReadOnly.ToList();
-
-        // Find Latest Version
-        Console.WriteLine("Finding Latest GitHub Release...");
-        UnityVersion? latest = FindLatest();
-        if (latest != null)
-            Console.WriteLine($"Found: {latest.Value}");
-
         // Set All as Prereleases to signify Regeneration
-        if (Config.GitHubUploadPackages
-            && Config.GitHubUpdateExistingReleases)
+        UnityVersion? githubLatest = null;
+        if (Config.GitHubUploadPackages)
         {
-            Console.WriteLine("Pruning Tags...");
-            foreach (var tag in await GitHubAPI.GetAllTagsAsync())
-            {
-                string tagName = tag.Name;
-                if (FindGitHubRelease(tagName) == null)
-                {
-                    Console.WriteLine(tagName);
-                    await GitHubAPI.DeleteTagAsync(tagName);
-                }
-            }
+            // Refresh GitHub Listing
+            await RefreshGitHub(true);
+            githubLatest = FindLatest();
             
-            Console.WriteLine("Applying Prerelease Tag to signify regeneration...");
-            foreach (var unityVersion in _unityReleases)
+            if (Config.GitHubUpdateExistingReleases)
             {
-                string tag = unityVersion.ToString();
-                Release? ghRel = FindGitHubRelease(tag);
-                if (ghRel is { Draft: false } and { Prerelease: false })
+                Console.WriteLine("Pruning Tags without Releases...");
+                foreach (var tag in _githubTags)
                 {
-                    Console.WriteLine(ghRel.TagName);
-                    await GitHubAPI.SetReleaseType(ghRel!, eReleaseType.Prelease);
+                    string tagName = tag.Name;
+                    if (FindGitHubRelease(tagName) == null)
+                    {
+                        Console.WriteLine(tagName);
+                        await GitHubAPI.DeleteTagAsync(tagName);
+                    }
+                }
+
+                Console.WriteLine("Applying Prerelease Tag to signify regeneration...");
+                foreach (var unityVersion in _unityReleases)
+                {
+                    string tag = unityVersion.ToString();
+                    Release? ghRel = FindGitHubRelease(tag);
+                    if (ghRel is { Draft: false } and { Prerelease: false })
+                    {
+                        Console.WriteLine(ghRel.TagName);
+                        await GitHubAPI.SetReleaseType(ghRel!, eReleaseType.Prelease);
+                    }
                 }
             }
         }
@@ -96,43 +108,53 @@ internal static class Program
             // Exclude versions that aren't supported by extraction
             if (UnityVersionComparer.Instance.Compare(unityVersion, _minVersion) <= 0)
                 continue;
-
-            // Find Release
+            
+            // Exclude versions that aren't specifically targeted
             string tag = unityVersion.ToString();
+            if (!string.IsNullOrEmpty(Config.UnityTargetVersion)
+                && (tag != Config.UnityTargetVersion)) 
+                continue;
+            
             Console.WriteLine($"Processing {tag}...");
-            Release? release = FindGitHubRelease(tag);
-            if (!string.IsNullOrEmpty(Config.UnityTargetVersion))
-            {
-                // Exclude versions that aren't specifically targeted
-                if (tag != Config.UnityTargetVersion)
-                    continue;
-            }
-            else
-            {
-                // Exclude anything that isn't set as Draft or Prelease
-                if (!Config.GitHubUpdateExistingReleases 
-                    && (release is { Draft: false } and { Prerelease: false }))
-                    continue;
-            }
 
-            // Create Release
+            // GitHub Handling
+            RepositoryTag? githubTag = null;
+            Release? githubRelease = null;
             if (Config.GitHubUploadPackages)
             {
-                if (release != null)
+                // Find Tag
+                githubTag = FindGitHubTag(tag);
+                if (githubTag == null)
                 {
-                    await GitHubAPI.DeleteRelease(release);
-                    release = null;
+                    await GitHubAPI.CreateGitTag(tag);
+                    await RefreshGitHub();
+                    githubTag = FindGitHubTag(tag);
                 }
-                
-                await GitHubAPI.SetupTag(tag);
-                release = await GitHubAPI.CreateRelease(tag, tag, _releaseBody, true);
+
+                // Find Release
+                githubRelease = FindGitHubRelease(tag);
+                if (githubRelease == null)
+                {
+                    githubRelease = await GitHubAPI.CreateRelease(tag, tag, _releaseBody, true);
+                    await RefreshGitHub();
+                }
+                else
+                {
+                    // Exclude anything that is not a Draft or Prelease
+                    if (githubRelease is { Draft: false } and { Prerelease: false })
+                        continue;
+                    
+                    // Clear Release of Assets
+                    foreach (var asset in await GitHubAPI.GetAllReleaseAssets(githubRelease))
+                        await GitHubAPI.DeleteAsset(asset);
+                }
             }
 
             // Handle Packages
             bool success = true;
             foreach (var package in _packages)
             {
-                if (await TryProcess(package, release!, unityVersion))
+                if (await TryProcess(package, githubRelease, unityVersion))
                     continue;
                 success = false;
                 break;
@@ -141,23 +163,24 @@ internal static class Program
                 continue;
 
             // Set Release as Public
-            if (Config.GitHubUploadPackages
-                && (release != null))
+            if (Config.GitHubUploadPackages)
             {
-                if ((latest == null) 
-                    || (UnityVersionComparer.Instance.Compare(latest.Value, unityVersion) <= 0))
+                if ((githubLatest == null)
+                    || (UnityVersionComparer.Instance.Compare(githubLatest.Value, unityVersion) <= 0))
                 {
-                    latest = unityVersion;
-                    await GitHubAPI.SetReleaseType(release!, eReleaseType.Latest);
+                    githubLatest = unityVersion;
+                    await GitHubAPI.SetReleaseType(githubRelease!, eReleaseType.Latest);
                 }
                 else 
-                    await GitHubAPI.SetReleaseType(release!, eReleaseType.None);
+                    await GitHubAPI.SetReleaseType(githubRelease!, eReleaseType.None);
             }
         }
     }
     
-    private static Release? FindGitHubRelease(string unityVersion)
-        => _githubReleases.FirstOrDefault(x => x.TagName == unityVersion);
+    private static RepositoryTag? FindGitHubTag(string tag)
+        => _githubTags.FirstOrDefault(x => x.Name == tag);
+    private static Release? FindGitHubRelease(string tag)
+        => _githubReleases.FirstOrDefault(x => x.TagName == tag);
 
     private static UnityVersion? FindLatest()
     {
@@ -176,7 +199,7 @@ internal static class Program
 
     private static async Task<bool> TryProcess(
         PackageBase package,
-        Release release,
+        Release? release,
         UnityVersion unityVersion)
     {
         // Create Temporary Directory
@@ -191,7 +214,7 @@ internal static class Program
                 && package.Bundle())
             {
                 if (Config.GitHubUploadPackages)
-                    await package.Upload(release);
+                    await package.Upload(release!);
             }
         }
         catch (Exception e)

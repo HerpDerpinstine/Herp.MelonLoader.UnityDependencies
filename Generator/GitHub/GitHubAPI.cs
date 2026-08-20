@@ -47,6 +47,18 @@ internal static class GitHubAPI
         return await client.Repository.GetAllTags(_repoOwner, _repoName);
     }
     
+    internal static async Task<IReadOnlyList<ReleaseAsset>> GetAllReleaseAssets(Release release)
+    {
+        // Get Client
+        GitHubClient client = GetClient();
+        
+        // Upload Asset to Release
+        return await client.Repository.Release.GetAllAssets(
+            _repoOwner,
+            _repoName,
+            release.Id);
+    }
+    
     internal static async Task DeleteTagAsync(string tag)
     {
         // Get Client
@@ -55,14 +67,14 @@ internal static class GitHubAPI
         // Get Releases
         await client.Git.Reference.Delete(_repoOwner, _repoName, $"tags/{tag}");
     }
-
-    internal static async Task<Release> SetReleaseType(Release release, eReleaseType value)
+    
+    internal static async Task SetReleaseType(Release release, eReleaseType value)
     {
         var draftUpdate = release.ToUpdate();
         draftUpdate.Draft = (value == eReleaseType.Draft);
         draftUpdate.Prerelease = (value == eReleaseType.Prelease);
-        //draftUpdate.MakeLatest = (value == eReleaseType.Latest) ? MakeLatestQualifier.True : MakeLatestQualifier.False;
-        return await UpdateRelease(release.Id, draftUpdate);
+        draftUpdate.MakeLatest = (value == eReleaseType.Latest) ? MakeLatestQualifier.True : MakeLatestQualifier.False;
+        await UpdateRelease(release.Id, draftUpdate);
     }
     
     internal static async Task UploadFile(string filePath, Release? release)
@@ -89,36 +101,28 @@ internal static class GitHubAPI
         });
     }
 
-    internal static async Task DeleteRelease(Release release)
-    {
-        // Get Client
-        GitHubClient client = GetClient();
-        
-        // Delete Release
-        string tagName = release.TagName;
-        await client.Repository.Release.Delete(_repoOwner, _repoName, release.Id);
-        string tagRef = $"refs/tags/{tagName}";
-        await client.Git.Reference.Delete(_repoOwner, _repoName, tagRef);
-    }
-
-    internal static async Task<Release> UpdateRelease(long id, ReleaseUpdate update)
+    internal static async Task UpdateRelease(long id, ReleaseUpdate update)
     {
         // Get Client
         GitHubClient client = GetClient();
         
         // Update Release
-        return await client.Repository.Release.Edit(_repoOwner, _repoName, id, update);
+        await client.Repository.Release.Edit(_repoOwner, _repoName, id, update);
     }
 
-    internal static async Task SetupTag(string tag)
+    internal static async Task CreateGitTag(string tag, string? message = null)
     {
         // Get Client
         GitHubClient client = GetClient();
 
         // Create Tag
-        string tagRef = $"refs/tags/{tag}";
         var commitSha = (await client.Repository.Branch.Get(_repoOwner, _repoName, Config.GitHubRepoBranch)).Commit.Sha;
-        await client.Git.Reference.Create(_repoOwner, _repoName, new(tagRef, commitSha));
+        await client.Git.Tag.Create(_repoOwner, _repoName, new()
+        {
+            Object = commitSha,
+            Tag = tag,
+            Message = message
+        });
     }
 
     internal static async Task UploadAsset(Release release,
@@ -148,5 +152,14 @@ internal static class GitHubAPI
         await client.Repository.Release.UploadAsset(release, 
             new(assetName, fileType, fileStream, 
             TimeSpan.FromSeconds(Config.GitHubTimeout)));
+    }
+    
+    internal static async Task DeleteAsset(ReleaseAsset asset)
+    {
+        // Get Client
+        GitHubClient client = GetClient();
+        
+        // Delete Asset from Release
+        await client.Repository.Release.DeleteAsset(_repoOwner, _repoName, asset.Id);
     }
 }
