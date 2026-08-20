@@ -114,8 +114,6 @@ internal static class Program
             if (!string.IsNullOrEmpty(Config.UnityTargetVersion)
                 && (tag != Config.UnityTargetVersion)) 
                 continue;
-            
-            Console.WriteLine($"Processing {tag}...");
 
             // GitHub Handling
             RepositoryTag? githubTag = null;
@@ -149,6 +147,8 @@ internal static class Program
                         await GitHubAPI.DeleteAsset(asset);
                 }
             }
+            
+            Console.WriteLine($"Processing {tag}...");
 
             // Handle Packages
             bool success = true;
